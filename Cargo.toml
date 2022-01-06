@@ -1,0 +1,19 @@
+[workspace]
+members = [
+    "boards/stm32mp157c-dk2",
+    "chips/stm32mp1",
+]
+
+
+[profile.dev]
+panic = "abort"
+lto = false
+opt-level = "z"
+debug = true
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "z"
+debug = true
+codegen-units = 1
