@@ -1,7 +1,10 @@
 [workspace]
 members = [
     "boards/stm32mp157c-dk2",
-    "chips/stm32mp1",
+    "chips/stm32mp15xx",
+]
+exclude = [
+    "tock/"
 ]
 
 

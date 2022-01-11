@@ -1,0 +1,11 @@
+[package]
+name = "stm32mp15xx"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+edition = "2021"
+
+[dependencies]
+cortexm4 = { path = "../../tock/arch/cortex-m4" }
+kernel = { path = "../../tock/kernel", features = ["no_debug_panics"] }
+stm32f4xx = { path = "../../tock/chips/stm32f4xx" }
+enum_primitive = { path = "../../tock/libraries/enum_primitive" }
