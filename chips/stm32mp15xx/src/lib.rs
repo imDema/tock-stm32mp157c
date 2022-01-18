@@ -22,7 +22,7 @@ pub mod nvic;
 pub mod rcc;
 // pub mod spi;
 // pub mod syscfg;
-// pub mod tim2;
+pub mod tim2;
 pub mod usart;
 // pub mod wdt;
 

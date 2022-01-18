@@ -14,6 +14,20 @@ impl Rcc {
         }
     }
 
+    // TIM2 clock
+
+    fn is_enabled_tim2_clock(&self) -> bool {
+        self.registers.mc_apb1ensetr.is_set(MC_APB1ENSETR::TIM2EN)
+    }
+
+    fn enable_tim2_clock(&self) {
+        self.registers.mc_apb1ensetr.modify(MC_APB1ENSETR::TIM2EN::SET)
+    }
+
+    fn disable_tim2_clock(&self) {
+        self.registers.mc_apb1ensetr.modify(MC_APB1ENSETR::TIM2EN::CLEAR)
+    }
+
     // USART2 clock
 
     fn is_enabled_usart2_clock(&self) -> bool {
@@ -63,6 +77,7 @@ pub enum PeripheralClockType {
 pub enum PCLK1 {
     USART2,
     USART3,
+    TIM2,
 }
 
 impl<'a> ClockInterface for PeripheralClock<'a> {
@@ -71,6 +86,7 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
             PeripheralClockType::APB1(ref v) => match v {
                 PCLK1::USART2 => self.rcc.is_enabled_usart2_clock(),
                 PCLK1::USART3 => self.rcc.is_enabled_usart3_clock(),
+                PCLK1::TIM2 => self.rcc.is_enabled_tim2_clock(),
             }
         }
     }
@@ -80,6 +96,7 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
             PeripheralClockType::APB1(ref v) => match v {
                 PCLK1::USART2 => self.rcc.enable_usart2_clock(),
                 PCLK1::USART3 => self.rcc.enable_usart3_clock(),
+                PCLK1::TIM2 => self.rcc.enable_tim2_clock(),
             }
         }
     }
@@ -89,6 +106,7 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
             PeripheralClockType::APB1(ref v) => match v {
                 PCLK1::USART2 => self.rcc.disable_usart2_clock(),
                 PCLK1::USART3 => self.rcc.disable_usart3_clock(),
+                PCLK1::TIM2 => self.rcc.disable_tim2_clock(),
             }
         }
     }
