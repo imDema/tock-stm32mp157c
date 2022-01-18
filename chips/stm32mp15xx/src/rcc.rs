@@ -28,6 +28,8 @@ impl Rcc {
         self.registers.mc_apb1ensetr.modify(MC_APB1ENSETR::USART2EN::CLEAR)
     }
 
+    // USART3 clock
+
     fn is_enabled_usart3_clock(&self) -> bool {
         self.registers.mc_apb1ensetr.is_set(MC_APB1ENSETR::USART3EN)
     }

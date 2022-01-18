@@ -9,9 +9,364 @@ use kernel::utilities::registers::{
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-use crate::dma1;
-use crate::dma1::Dma1Peripheral;
 use crate::rcc;
+
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, PartialEq)]
+enum USARTStateTX {
+    Idle,
+    Transmitting,
+    AbortRequested,
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, PartialEq)]
+enum USARTStateRX {
+    Idle,
+    Receiving,
+    AbortRequested,
+}
+
+pub struct Usart<'a> {
+    registers: StaticRef<UsartRegisters>,
+    clock: UsartClock<'a>,
+
+    tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
+    rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
+
+    tx_buffer: TakeCell<'static, [u8]>,
+    tx_position: Cell<usize>,
+    tx_len: Cell<usize>,
+    tx_status: Cell<USARTStateTX>,
+
+    rx_buffer: TakeCell<'static, [u8]>,
+    rx_position: Cell<usize>,
+    rx_len: Cell<usize>,
+    rx_status: Cell<USARTStateRX>,
+}
+
+impl<'a> Usart<'a> {
+    const fn new(base_addr: StaticRef<UsartRegisters>, clock: UsartClock<'a>) -> Self {
+        Self {
+            registers: base_addr,
+            clock: clock,
+
+            tx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
+
+            tx_buffer: TakeCell::empty(),
+            tx_position: Cell::new(0),
+            tx_len: Cell::new(0),
+            tx_status: Cell::new(USARTStateTX::Idle),
+
+            rx_buffer: TakeCell::empty(),
+            rx_position: Cell::new(0),
+            rx_len: Cell::new(0),
+            rx_status: Cell::new(USARTStateRX::Idle),
+        }
+    }
+
+    pub const fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
+        Self::new(
+            USART2_BASE,
+            UsartClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
+                rcc,
+            )),
+        )
+    }
+
+    pub const fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
+        Self::new(
+            USART3_BASE,
+            UsartClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART3),
+                rcc,
+            )),
+        )
+    }
+
+    pub fn is_enabled_clock(&self) -> bool {
+        self.clock.is_enabled()
+    }
+
+    pub fn enable_clock(&self) {
+        self.clock.enable();
+    }
+
+    pub fn disable_clock(&self) {
+        self.clock.disable();
+    }
+
+    // for use by panic in io.rs
+    pub fn send_byte(&self, byte: u8) {
+        // loop till TXE (Transmit data register empty) becomes 1
+        while !self.registers.isr.is_set(ISR::TXE) {}
+        self.registers.tdr.set(byte.into());
+    }
+
+    fn enable_transmit_interrupt(&self) {
+        self.registers.cr1.modify(CR1::TXEIE::SET);
+    }
+
+    fn disable_transmit_interrupt(&self) {
+        self.registers.cr1.modify(CR1::TXEIE::CLEAR);
+    }
+
+    fn enable_receive_interrupt(&self) {
+        self.registers.cr1.modify(CR1::RXNEIE::SET);
+    }
+
+    fn disable_receive_interrupt(&self) {
+        self.registers.cr1.modify(CR1::RXNEIE::CLEAR);
+    }
+
+    fn clear_overrun(&self) {
+        self.registers.icr.write(ICR::ORECF::SET);
+    }
+
+    pub fn handle_interrupt(&self) {
+        if self.registers.isr.is_set(ISR::TXE) {
+            self.disable_transmit_interrupt();
+
+            // ignore IRQ if not transmitting
+            if self.tx_status.get() == USARTStateTX::Transmitting {
+                if self.tx_position.get() < self.tx_len.get() {
+                    self.tx_buffer.map(|buf| {
+                        self.registers.tdr.set(buf[self.tx_position.get()].into());
+                        self.tx_position.replace(self.tx_position.get() + 1);
+                    });
+                }
+                if self.tx_position.get() == self.tx_len.get() {
+                    // transmission done
+                    self.tx_status.replace(USARTStateTX::Idle);
+                } else {
+                    self.enable_transmit_interrupt();
+                }
+                // notify client if transfer is done
+                if self.tx_status.get() == USARTStateTX::Idle {
+                    self.tx_client.map(|client| {
+                        if let Some(buf) = self.tx_buffer.take() {
+                            client.transmitted_buffer(buf, self.tx_len.get(), Ok(()));
+                        }
+                    });
+                }
+            } else if self.tx_status.get() == USARTStateTX::AbortRequested {
+                self.tx_status.replace(USARTStateTX::Idle);
+                self.tx_client.map(|client| {
+                    if let Some(buf) = self.tx_buffer.take() {
+                        client.transmitted_buffer(
+                            buf,
+                            self.tx_position.get(),
+                            Err(ErrorCode::CANCEL),
+                        );
+                    }
+                });
+            }
+        }
+
+        if self.registers.isr.is_set(ISR::RXNE) {
+            let byte = self.registers.rdr.get() as u8;
+            self.disable_receive_interrupt();
+
+            // ignore IRQ if not receiving
+            if self.rx_status.get() == USARTStateRX::Receiving {
+                if self.rx_position.get() < self.rx_len.get() {
+                    self.rx_buffer.map(|buf| {
+                        buf[self.rx_position.get()] = byte;
+                        self.rx_position.replace(self.rx_position.get() + 1);
+                    });
+                }
+                if self.rx_position.get() == self.rx_len.get() {
+                    // reception done
+                    self.rx_status.replace(USARTStateRX::Idle);
+                } else {
+                    self.enable_receive_interrupt();
+                }
+                // notify client if transfer is done
+                if self.rx_status.get() == USARTStateRX::Idle {
+                    self.rx_client.map(|client| {
+                        if let Some(buf) = self.rx_buffer.take() {
+                            client.received_buffer(
+                                buf,
+                                self.rx_len.get(),
+                                Ok(()),
+                                hil::uart::Error::None,
+                            );
+                        }
+                    });
+                }
+            } else if self.rx_status.get() == USARTStateRX::AbortRequested {
+                self.rx_status.replace(USARTStateRX::Idle);
+                self.rx_client.map(|client| {
+                    if let Some(buf) = self.rx_buffer.take() {
+                        client.received_buffer(
+                            buf,
+                            self.rx_position.get(),
+                            Err(ErrorCode::CANCEL),
+                            hil::uart::Error::Aborted,
+                        );
+                    }
+                });
+            }
+        }
+
+        if self.registers.isr.is_set(ISR::ORE) {
+            self.clear_overrun();
+            self.rx_status.replace(USARTStateRX::Idle);
+            self.rx_client.map(|client| {
+                if let Some(buf) = self.rx_buffer.take() {
+                    client.received_buffer(
+                        buf,
+                        self.rx_position.get(),
+                        Err(ErrorCode::CANCEL),
+                        hil::uart::Error::OverrunError,
+                    );
+                }
+            });
+        }
+    }
+}
+
+impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
+    fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
+        self.tx_client.set(client);
+    }
+
+    fn transmit_buffer(
+        &self,
+        tx_data: &'static mut [u8],
+        tx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.tx_status.get() == USARTStateTX::Idle {
+            if tx_len <= tx_data.len() {
+                self.tx_buffer.put(Some(tx_data));
+                self.tx_position.set(0);
+                self.tx_len.set(tx_len);
+                self.tx_status.set(USARTStateTX::Transmitting);
+                self.enable_transmit_interrupt();
+                Ok(())
+            } else {
+                Err((ErrorCode::SIZE, tx_data))
+            }
+        } else {
+            Err((ErrorCode::BUSY, tx_data))
+        }
+    }
+
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
+    }
+
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+        if self.tx_status.get() != USARTStateTX::Idle {
+            self.tx_status.set(USARTStateTX::AbortRequested);
+            Err(ErrorCode::BUSY)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl hil::uart::Configure for Usart<'_> {
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
+        if params.baud_rate != 115200
+            || params.stop_bits != hil::uart::StopBits::One
+            || params.parity != hil::uart::Parity::None
+            || params.hw_flow_control != false
+            || params.width != hil::uart::Width::Eight
+        {
+            panic!(
+                "Currently we only support uart setting of 115200bps 8N1, no hardware flow control"
+            );
+        }
+
+        // Configure the word length - 0: 1 Start bit, 8 Data bits, n Stop bits
+        self.registers.cr1.modify(CR1::M0::CLEAR);
+        self.registers.cr1.modify(CR1::M1::CLEAR);
+
+        // Set the stop bit length - 00: 1 Stop bits
+        self.registers.cr2.modify(CR2::STOP.val(0b00 as u32));
+
+        // Set no parity
+        self.registers.cr1.modify(CR1::PCE::CLEAR);
+
+        // Set the baud rate. By default OVER8 is 0 (oversampling by 16) and
+        // PCLK1 is at 8Mhz. The desired baud rate is 115.2KBps. So according
+        // to Table 159 of reference manual, the value for BRR is 69.444 (0x45)
+        // DIV_Fraction = 0x5
+        // DIV_Mantissa = 0x4
+        self.registers.brr.modify(BRR::BRR_0_3.val(0x5 as u32)); // TODO: Check, may be reversed
+        self.registers.brr.modify(BRR::BRR_4_15.val(0x4 as u32));
+
+        // Enable transmit block
+        self.registers.cr1.modify(CR1::TE::SET);
+
+        // Enable receive block
+        self.registers.cr1.modify(CR1::RE::SET);
+
+        // Enable USART
+        self.registers.cr1.modify(CR1::UE::SET);
+
+        Ok(())
+    }
+}
+
+impl<'a> hil::uart::Receive<'a> for Usart<'a> {
+    fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
+        self.rx_client.set(client);
+    }
+
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.rx_status.get() == USARTStateRX::Idle {
+            if rx_len <= rx_buffer.len() {
+                self.rx_buffer.put(Some(rx_buffer));
+                self.rx_position.set(0);
+                self.rx_len.set(rx_len);
+                self.rx_status.set(USARTStateRX::Receiving);
+                self.enable_receive_interrupt();
+                Ok(())
+            } else {
+                Err((ErrorCode::SIZE, rx_buffer))
+            }
+        } else {
+            Err((ErrorCode::BUSY, rx_buffer))
+        }
+    }
+
+    fn receive_word(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
+    }
+
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
+        if self.rx_status.get() != USARTStateRX::Idle {
+            self.rx_status.set(USARTStateRX::AbortRequested);
+            Err(ErrorCode::BUSY)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+struct UsartClock<'a>(rcc::PeripheralClock<'a>);
+
+impl ClockInterface for UsartClock<'_> {
+    fn is_enabled(&self) -> bool {
+        self.0.is_enabled()
+    }
+
+    fn enable(&self) {
+        self.0.enable();
+    }
+
+    fn disable(&self) {
+        self.0.disable();
+    }
+}
 
 register_structs! {
     /// Universal synchronous asynchronous receiver       transmitter
@@ -370,358 +725,8 @@ SIDR [
     SID OFFSET(0) NUMBITS(32) []
 ]
 ];
+const USART3_BASE: StaticRef<UsartRegisters> =
+    unsafe { StaticRef::new(0x4000F000 as *const UsartRegisters) };
+
 const USART2_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x4000E000 as *const UsartRegisters) };
-
-// for use by dma1
-pub(crate) fn get_address_dr(regs: StaticRef<UsartRegisters>) -> u32 {
-    &regs.dr as *const ReadWrite<u32> as u32
-}
-
-
-#[allow(non_camel_case_types)]
-#[derive(Copy, Clone, PartialEq)]
-enum USARTStateTX {
-    Idle,
-    Transmitting,
-    AbortRequested,
-}
-
-#[allow(non_camel_case_types)]
-#[derive(Copy, Clone, PartialEq)]
-enum USARTStateRX {
-    Idle,
-    Receiving,
-    AbortRequested,
-}
-
-pub struct Usart<'a> {
-    registers: StaticRef<UsartRegisters>,
-    clock: UsartClock<'a>,
-
-    tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
-    rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
-
-    tx_buffer: TakeCell<'static, [u8]>,
-    tx_position: Cell<usize>,
-    tx_len: Cell<usize>,
-    tx_status: Cell<USARTStateTX>,
-
-    rx_buffer: TakeCell<'static, [u8]>,
-    rx_position: Cell<usize>,
-    rx_len: Cell<usize>,
-    rx_status: Cell<USARTStateRX>,
-}
-
-impl<'a> Usart<'a> {
-    const fn new(base_addr: StaticRef<UsartRegisters>, clock: UsartClock<'a>) -> Self {
-        Self {
-            registers: base_addr,
-            clock: clock,
-
-            tx_client: OptionalCell::empty(),
-            rx_client: OptionalCell::empty(),
-
-            tx_buffer: TakeCell::empty(),
-            tx_position: Cell::new(0),
-            tx_len: Cell::new(0),
-            tx_status: Cell::new(USARTStateTX::Idle),
-
-            rx_buffer: TakeCell::empty(),
-            rx_position: Cell::new(0),
-            rx_len: Cell::new(0),
-            rx_status: Cell::new(USARTStateRX::Idle),
-        }
-    }
-
-    pub const fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
-        Self::new(
-            USART2_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
-                rcc,
-            )),
-        )
-    }
-
-    pub fn is_enabled_clock(&self) -> bool {
-        self.clock.is_enabled()
-    }
-
-    pub fn enable_clock(&self) {
-        self.clock.enable();
-    }
-
-    pub fn disable_clock(&self) {
-        self.clock.disable();
-    }
-
-    // for use by panic in io.rs
-    pub fn send_byte(&self, byte: u8) {
-        // loop till TXE (Transmit data register empty) becomes 1
-        while !self.registers.isr.is_set(ISR::TXE) {}
-        self.registers.tdr.set(byte.into());
-    }
-
-    fn enable_transmit_interrupt(&self) {
-        self.registers.cr1.modify(CR1::TXEIE::SET);
-    }
-
-    fn disable_transmit_interrupt(&self) {
-        self.registers.cr1.modify(CR1::TXEIE::CLEAR);
-    }
-
-    fn enable_receive_interrupt(&self) {
-        self.registers.cr1.modify(CR1::RXNEIE::SET);
-    }
-
-    fn disable_receive_interrupt(&self) {
-        self.registers.cr1.modify(CR1::RXNEIE::CLEAR);
-    }
-
-    fn clear_overrun(&self) {
-        self.registers.icr.write(ICR::ORECF::SET);
-    }
-
-    pub fn handle_interrupt(&self) {
-        if self.registers.isr.is_set(ISR::TXE) {
-            self.disable_transmit_interrupt();
-
-            // ignore IRQ if not transmitting
-            if self.tx_status.get() == USARTStateTX::Transmitting {
-                if self.tx_position.get() < self.tx_len.get() {
-                    self.tx_buffer.map(|buf| {
-                        self.registers.tdr.set(buf[self.tx_position.get()].into());
-                        self.tx_position.replace(self.tx_position.get() + 1);
-                    });
-                }
-                if self.tx_position.get() == self.tx_len.get() {
-                    // transmission done
-                    self.tx_status.replace(USARTStateTX::Idle);
-                } else {
-                    self.enable_transmit_interrupt();
-                }
-                // notify client if transfer is done
-                if self.tx_status.get() == USARTStateTX::Idle {
-                    self.tx_client.map(|client| {
-                        if let Some(buf) = self.tx_buffer.take() {
-                            client.transmitted_buffer(buf, self.tx_len.get(), Ok(()));
-                        }
-                    });
-                }
-            } else if self.tx_status.get() == USARTStateTX::AbortRequested {
-                self.tx_status.replace(USARTStateTX::Idle);
-                self.tx_client.map(|client| {
-                    if let Some(buf) = self.tx_buffer.take() {
-                        client.transmitted_buffer(
-                            buf,
-                            self.tx_position.get(),
-                            Err(ErrorCode::CANCEL),
-                        );
-                    }
-                });
-            }
-        }
-
-        if self.registers.isr.is_set(ISR::RXNE) {
-            let byte = self.registers.rdr.get() as u8;
-            self.disable_receive_interrupt();
-
-            // ignore IRQ if not receiving
-            if self.rx_status.get() == USARTStateRX::Receiving {
-                if self.rx_position.get() < self.rx_len.get() {
-                    self.rx_buffer.map(|buf| {
-                        buf[self.rx_position.get()] = byte;
-                        self.rx_position.replace(self.rx_position.get() + 1);
-                    });
-                }
-                if self.rx_position.get() == self.rx_len.get() {
-                    // reception done
-                    self.rx_status.replace(USARTStateRX::Idle);
-                } else {
-                    self.enable_receive_interrupt();
-                }
-                // notify client if transfer is done
-                if self.rx_status.get() == USARTStateRX::Idle {
-                    self.rx_client.map(|client| {
-                        if let Some(buf) = self.rx_buffer.take() {
-                            client.received_buffer(
-                                buf,
-                                self.rx_len.get(),
-                                Ok(()),
-                                hil::uart::Error::None,
-                            );
-                        }
-                    });
-                }
-            } else if self.rx_status.get() == USARTStateRX::AbortRequested {
-                self.rx_status.replace(USARTStateRX::Idle);
-                self.rx_client.map(|client| {
-                    if let Some(buf) = self.rx_buffer.take() {
-                        client.received_buffer(
-                            buf,
-                            self.rx_position.get(),
-                            Err(ErrorCode::CANCEL),
-                            hil::uart::Error::Aborted,
-                        );
-                    }
-                });
-            }
-        }
-
-        if self.registers.isr.is_set(ISR::ORE) {
-            self.clear_overrun();
-            self.rx_status.replace(USARTStateRX::Idle);
-            self.rx_client.map(|client| {
-                if let Some(buf) = self.rx_buffer.take() {
-                    client.received_buffer(
-                        buf,
-                        self.rx_position.get(),
-                        Err(ErrorCode::CANCEL),
-                        hil::uart::Error::OverrunError,
-                    );
-                }
-            });
-        }
-    }
-}
-
-impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
-    fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
-        self.tx_client.set(client);
-    }
-
-    fn transmit_buffer(
-        &self,
-        tx_data: &'static mut [u8],
-        tx_len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if self.tx_status.get() == USARTStateTX::Idle {
-            if tx_len <= tx_data.len() {
-                self.tx_buffer.put(Some(tx_data));
-                self.tx_position.set(0);
-                self.tx_len.set(tx_len);
-                self.tx_status.set(USARTStateTX::Transmitting);
-                self.enable_transmit_interrupt();
-                Ok(())
-            } else {
-                Err((ErrorCode::SIZE, tx_data))
-            }
-        } else {
-            Err((ErrorCode::BUSY, tx_data))
-        }
-    }
-
-    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
-    }
-
-    fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        if self.tx_status.get() != USARTStateTX::Idle {
-            self.tx_status.set(USARTStateTX::AbortRequested);
-            Err(ErrorCode::BUSY)
-        } else {
-            Ok(())
-        }
-    }
-}
-
-impl hil::uart::Configure for Usart<'_> {
-    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
-        if params.baud_rate != 115200
-            || params.stop_bits != hil::uart::StopBits::One
-            || params.parity != hil::uart::Parity::None
-            || params.hw_flow_control != false
-            || params.width != hil::uart::Width::Eight
-        {
-            panic!(
-                "Currently we only support uart setting of 115200bps 8N1, no hardware flow control"
-            );
-        }
-
-        // Configure the word length - 0: 1 Start bit, 8 Data bits, n Stop bits
-        self.registers.cr1.modify(CR1::M0::CLEAR);
-        self.registers.cr1.modify(CR1::M1::CLEAR);
-
-        // Set the stop bit length - 00: 1 Stop bits
-        self.registers.cr2.modify(CR2::STOP.val(0b00 as u32));
-
-        // Set no parity
-        self.registers.cr1.modify(CR1::PCE::CLEAR);
-
-        // Set the baud rate. By default OVER8 is 0 (oversampling by 16) and
-        // PCLK1 is at 8Mhz. The desired baud rate is 115.2KBps. So according
-        // to Table 159 of reference manual, the value for BRR is 69.444 (0x45)
-        // DIV_Fraction = 0x5
-        // DIV_Mantissa = 0x4
-        self.registers.brr.modify(BRR::BRR_0_3.val(0x5 as u32)); // TODO: Check, may be reversed
-        self.registers.brr.modify(BRR::BRR_4_15.val(0x4 as u32));
-
-        // Enable transmit block
-        self.registers.cr1.modify(CR1::TE::SET);
-
-        // Enable receive block
-        self.registers.cr1.modify(CR1::RE::SET);
-
-        // Enable USART
-        self.registers.cr1.modify(CR1::UE::SET);
-
-        Ok(())
-    }
-}
-
-impl<'a> hil::uart::Receive<'a> for Usart<'a> {
-    fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
-        self.rx_client.set(client);
-    }
-
-    fn receive_buffer(
-        &self,
-        rx_buffer: &'static mut [u8],
-        rx_len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if self.rx_status.get() == USARTStateRX::Idle {
-            if rx_len <= rx_buffer.len() {
-                self.rx_buffer.put(Some(rx_buffer));
-                self.rx_position.set(0);
-                self.rx_len.set(rx_len);
-                self.rx_status.set(USARTStateRX::Receiving);
-                self.enable_receive_interrupt();
-                Ok(())
-            } else {
-                Err((ErrorCode::SIZE, rx_buffer))
-            }
-        } else {
-            Err((ErrorCode::BUSY, rx_buffer))
-        }
-    }
-
-    fn receive_word(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
-    }
-
-    fn receive_abort(&self) -> Result<(), ErrorCode> {
-        if self.rx_status.get() != USARTStateRX::Idle {
-            self.rx_status.set(USARTStateRX::AbortRequested);
-            Err(ErrorCode::BUSY)
-        } else {
-            Ok(())
-        }
-    }
-}
-
-struct UsartClock<'a>(rcc::PeripheralClock<'a>);
-
-impl ClockInterface for UsartClock<'_> {
-    fn is_enabled(&self) -> bool {
-        self.0.is_enabled()
-    }
-
-    fn enable(&self) {
-        self.0.enable();
-    }
-
-    fn disable(&self) {
-        self.0.disable();
-    }
-}

@@ -9,7 +9,7 @@
 #![recursion_limit = "1024"]
 
 pub mod chip;
-// mod deferred_call_tasks;
+mod deferred_calls;
 pub mod nvic;
 
 // Peripherals
@@ -23,7 +23,7 @@ pub mod rcc;
 // pub mod spi;
 // pub mod syscfg;
 // pub mod tim2;
-// pub mod usart;
+pub mod usart;
 // pub mod wdt;
 
 use cortexm4::{
@@ -63,7 +63,6 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 ];
 
 
-// STM32F412g has total of 97 interrupts
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // `used` ensures that the symbol is kept until the final binary. However, as of
 // May 2020, due to the compilation process, there must be some other compiled
