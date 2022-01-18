@@ -6,6 +6,7 @@
 #![crate_type = "rlib"]
 #![feature(const_fn_trait_bound)]
 #![no_std]
+#![recursion_limit = "1024"]
 
 pub mod chip;
 // mod deferred_call_tasks;
@@ -13,7 +14,7 @@ pub mod nvic;
 
 // Peripherals
 // pub mod adc;
-pub mod dma1;
+// pub mod dma1;
 // pub mod exti;
 // pub mod flash;
 // pub mod gpio;
@@ -22,7 +23,7 @@ pub mod rcc;
 // pub mod spi;
 // pub mod syscfg;
 // pub mod tim2;
-pub mod usart;
+// pub mod usart;
 // pub mod wdt;
 
 use cortexm4::{
