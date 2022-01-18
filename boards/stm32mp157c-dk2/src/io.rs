@@ -1,8 +1,6 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
-use cortexm4;
-
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
@@ -10,7 +8,7 @@ use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
 use stm32mp15xx;
-use stm32mp15xx::gpio::PinId;
+// use stm32mp15xx::gpio::PinId;
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -26,7 +24,7 @@ pub static mut WRITER: Writer = Writer { initialized: false };
 
 impl Writer {
     /// Indicate that USART has already been initialized. Trying to double
-    /// initialize USART2 causes stm32mp15xx to go into in in-deterministic state.
+    /// initialize USART2 causes STM32F446RE to go into in in-deterministic state.
     pub fn set_initialized(&mut self) {
         self.initialized = true;
     }
@@ -42,13 +40,13 @@ impl Write for Writer {
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
         let rcc = stm32mp15xx::rcc::Rcc::new();
-        let uart = stm32mp15xx::usart::Usart::new_usart2(&rcc);
+        let uart = stm32mp15xx::usart::Usart::new_usart3(&rcc);
 
         if !self.initialized {
             self.initialized = true;
 
             let _ = uart.configure(uart::Parameters {
-                baud_rate: 115200,
+                baud_rate: 11500,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
                 hw_flow_control: false,
@@ -66,19 +64,21 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
-    // User LD2 is connected to PB07
+    // User LD3 is connected to PE09
     // Have to reinitialize several peripherals because otherwise can't access them here.
-    let rcc = stm32mp15xx::rcc::Rcc::new();
-    let syscfg = stm32mp15xx::syscfg::Syscfg::new(&rcc);
-    let exti = stm32mp15xx::exti::Exti::new(&syscfg);
-    let pin = stm32mp15xx::gpio::Pin::new(PinId::PA07, &exti);
-    let gpio_ports = stm32mp15xx::gpio::GpioPorts::new(&rcc, &exti);
-    pin.set_ports_ref(&gpio_ports);
-    let led = &mut led::LedHigh::new(&pin);
+    // let rcc = stm32mp15xx::rcc::Rcc::new();
+    // let syscfg = stm32mp15xx::syscfg::Syscfg::new(&rcc);
+    // let exti = stm32mp15xx::exti::Exti::new(&syscfg);
+    // let pin = stm32mp15xx::gpio::Pin::new(PinId::PE09, &exti);
+    // let gpio_ports = stm32mp15xx::gpio::GpioPorts::new(&rcc, &exti);
+    // pin.set_ports_ref(&gpio_ports);
+    // let led = &mut led::LedHigh::new(&pin);
     let writer = &mut WRITER;
 
+    let mut leds: [&FakeLed; 0] = [];
+
     debug::panic(
-        &mut [led],
+        &mut leds[..],
         writer,
         info,
         &cortexm4::support::nop,
@@ -86,4 +86,28 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
         &CHIP,
         &PROCESS_PRINTER,
     )
+}
+
+struct FakeLed();
+
+impl led::Led for FakeLed {
+    fn init(&self) {
+        
+    }
+
+    fn on(&self) {
+        
+    }
+
+    fn off(&self) {
+        
+    }
+
+    fn toggle(&self) {
+        
+    }
+
+    fn read(&self) -> bool {
+        false
+    }
 }

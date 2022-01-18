@@ -6,7 +6,7 @@ use kernel::hil::time::{
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{self, register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
@@ -52,15 +52,15 @@ impl<'a> Tim2<'a> {
     }
 
     // starts the timer
-    pub fn start(&self) { // TODO: Check
+    pub fn start(&self) {
         // TIM2 uses PCLK1. By default PCLK1 uses HSI running at 16Mhz.
         // Before calling set_alarm, we assume clock to TIM2 has been
         // enabled.
 
-        self.registers.arr.set(0xFFFF_FFFF - 1);
+        self.registers.arr.set(0xFFFF - 1);
         // Prescale 16Mhz to 16Khz, by dividing it by 1000. We need set EGR.UG
         // in order for the prescale value to become active.
-        self.registers.psc.set((999 - 1) as u32);
+        self.registers.psc.set((999 - 1) as u16);
         self.registers.egr.write(EGR::UG::SET);
         self.registers.cr1.modify(CR1::CEN::SET);
     }
@@ -117,12 +117,12 @@ impl<'a> Alarm<'a> for Tim2<'a> {
         }
 
         let _ = self.disarm();
-        self.registers.ccr1.set(expire.into_u32());
+        self.registers.ccr1.set(expire.into_u32() as u16);
         self.registers.dier.modify(DIER::CC1IE::SET);
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        Self::Ticks::from(self.registers.ccr1.get())
+        Self::Ticks::from(self.registers.ccr1.get() as u32)
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
@@ -226,7 +226,7 @@ register_structs! {
         (0x05E => @END),
     }
 }
-register_bitfields![u32,
+register_bitfields![u16,
 CR1 [
     /// CEN
     CEN OFFSET(0) NUMBITS(1) [],
@@ -247,6 +247,99 @@ CR1 [
     /// UIFREMAP
     UIFREMAP OFFSET(11) NUMBITS(1) []
 ],
+DIER [
+    /// UIE
+    UIE OFFSET(0) NUMBITS(1) [],
+    /// CC1IE
+    CC1IE OFFSET(1) NUMBITS(1) [],
+    /// CC2IE
+    CC2IE OFFSET(2) NUMBITS(1) [],
+    /// CC3IE
+    CC3IE OFFSET(3) NUMBITS(1) [],
+    /// CC4IE
+    CC4IE OFFSET(4) NUMBITS(1) [],
+    /// COMIE
+    COMIE OFFSET(5) NUMBITS(1) [],
+    /// TIE
+    TIE OFFSET(6) NUMBITS(1) [],
+    /// BIE
+    BIE OFFSET(7) NUMBITS(1) [],
+    /// UDE
+    UDE OFFSET(8) NUMBITS(1) [],
+    /// CC1DE
+    CC1DE OFFSET(9) NUMBITS(1) [],
+    /// CC2DE
+    CC2DE OFFSET(10) NUMBITS(1) [],
+    /// CC3DE
+    CC3DE OFFSET(11) NUMBITS(1) [],
+    /// CC4DE
+    CC4DE OFFSET(12) NUMBITS(1) [],
+    /// COMDE
+    COMDE OFFSET(13) NUMBITS(1) [],
+    /// TDE
+    TDE OFFSET(14) NUMBITS(1) []
+],
+EGR [
+    /// UG
+    UG OFFSET(0) NUMBITS(1) [],
+    /// CC1G
+    CC1G OFFSET(1) NUMBITS(1) [],
+    /// CC2G
+    CC2G OFFSET(2) NUMBITS(1) [],
+    /// CC3G
+    CC3G OFFSET(3) NUMBITS(1) [],
+    /// CC4G
+    CC4G OFFSET(4) NUMBITS(1) [],
+    /// COMG
+    COMG OFFSET(5) NUMBITS(1) [],
+    /// TG
+    TG OFFSET(6) NUMBITS(1) [],
+    /// BG
+    BG OFFSET(7) NUMBITS(1) [],
+    /// B2G
+    B2G OFFSET(8) NUMBITS(1) []
+],
+PSC [
+    /// PSC
+    PSC OFFSET(0) NUMBITS(16) []
+],
+ARR [
+    /// ARR
+    ARR OFFSET(0) NUMBITS(16) []
+],
+RCR [
+    /// REP
+    REP OFFSET(0) NUMBITS(16) []
+],
+CCR1 [
+    /// CCR1
+    CCR1 OFFSET(0) NUMBITS(16) []
+],
+CCR2 [
+    /// CCR2
+    CCR2 OFFSET(0) NUMBITS(16) []
+],
+CCR3 [
+    /// CCR3
+    CCR3 OFFSET(0) NUMBITS(16) []
+],
+CCR4 [
+    /// CCR4
+    CCR4 OFFSET(0) NUMBITS(16) []
+],
+DCR [
+    /// DBA
+    DBA OFFSET(0) NUMBITS(5) [],
+    /// DBL
+    DBL OFFSET(8) NUMBITS(5) []
+],
+CCR6 [
+    /// CCR6
+    CCR6 OFFSET(0) NUMBITS(16) []
+]
+];
+
+register_bitfields![u32,
 CR2 [
     /// CCPC
     CCPC OFFSET(0) NUMBITS(1) [],
@@ -301,38 +394,6 @@ SMCR [
     /// TS4
     TS4 OFFSET(21) NUMBITS(1) []
 ],
-DIER [
-    /// UIE
-    UIE OFFSET(0) NUMBITS(1) [],
-    /// CC1IE
-    CC1IE OFFSET(1) NUMBITS(1) [],
-    /// CC2IE
-    CC2IE OFFSET(2) NUMBITS(1) [],
-    /// CC3IE
-    CC3IE OFFSET(3) NUMBITS(1) [],
-    /// CC4IE
-    CC4IE OFFSET(4) NUMBITS(1) [],
-    /// COMIE
-    COMIE OFFSET(5) NUMBITS(1) [],
-    /// TIE
-    TIE OFFSET(6) NUMBITS(1) [],
-    /// BIE
-    BIE OFFSET(7) NUMBITS(1) [],
-    /// UDE
-    UDE OFFSET(8) NUMBITS(1) [],
-    /// CC1DE
-    CC1DE OFFSET(9) NUMBITS(1) [],
-    /// CC2DE
-    CC2DE OFFSET(10) NUMBITS(1) [],
-    /// CC3DE
-    CC3DE OFFSET(11) NUMBITS(1) [],
-    /// CC4DE
-    CC4DE OFFSET(12) NUMBITS(1) [],
-    /// COMDE
-    COMDE OFFSET(13) NUMBITS(1) [],
-    /// TDE
-    TDE OFFSET(14) NUMBITS(1) []
-],
 SR [
     /// UIF
     UIF OFFSET(0) NUMBITS(1) [],
@@ -366,26 +427,6 @@ SR [
     CC5IF OFFSET(16) NUMBITS(1) [],
     /// CC6IF
     CC6IF OFFSET(17) NUMBITS(1) []
-],
-EGR [
-    /// UG
-    UG OFFSET(0) NUMBITS(1) [],
-    /// CC1G
-    CC1G OFFSET(1) NUMBITS(1) [],
-    /// CC2G
-    CC2G OFFSET(2) NUMBITS(1) [],
-    /// CC3G
-    CC3G OFFSET(3) NUMBITS(1) [],
-    /// CC4G
-    CC4G OFFSET(4) NUMBITS(1) [],
-    /// COMG
-    COMG OFFSET(5) NUMBITS(1) [],
-    /// TG
-    TG OFFSET(6) NUMBITS(1) [],
-    /// BG
-    BG OFFSET(7) NUMBITS(1) [],
-    /// B2G
-    B2G OFFSET(8) NUMBITS(1) []
 ],
 CCMR1ALTERNATE2 [
     /// CC1S
@@ -461,34 +502,6 @@ CNT [
     /// UIFCPY
     UIFCPY OFFSET(31) NUMBITS(1) []
 ],
-PSC [
-    /// PSC
-    PSC OFFSET(0) NUMBITS(16) []
-],
-ARR [
-    /// ARR
-    ARR OFFSET(0) NUMBITS(16) []
-],
-RCR [
-    /// REP
-    REP OFFSET(0) NUMBITS(16) []
-],
-CCR1 [
-    /// CCR1
-    CCR1 OFFSET(0) NUMBITS(16) []
-],
-CCR2 [
-    /// CCR2
-    CCR2 OFFSET(0) NUMBITS(16) []
-],
-CCR3 [
-    /// CCR3
-    CCR3 OFFSET(0) NUMBITS(16) []
-],
-CCR4 [
-    /// CCR4
-    CCR4 OFFSET(0) NUMBITS(16) []
-],
 BDTR [
     /// DTG
     DTG OFFSET(0) NUMBITS(8) [],
@@ -522,12 +535,6 @@ BDTR [
     BKBID OFFSET(28) NUMBITS(1) [],
     /// BK2BID
     BK2BID OFFSET(29) NUMBITS(1) []
-],
-DCR [
-    /// DBA
-    DBA OFFSET(0) NUMBITS(5) [],
-    /// DBL
-    DBL OFFSET(8) NUMBITS(5) []
 ],
 DMAR [
     /// DMAB
@@ -565,10 +572,6 @@ CCR5 [
     /// GC5C3
     GC5C3 OFFSET(31) NUMBITS(1) []
 ],
-CCR6 [
-    /// CCR6
-    CCR6 OFFSET(0) NUMBITS(16) []
-]
 ];
 const BASE: StaticRef<Tim2Registers> =
     unsafe { StaticRef::new(0x40000000 as *const Tim2Registers) };

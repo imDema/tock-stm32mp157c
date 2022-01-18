@@ -22,7 +22,7 @@ pub struct Stm32mp15xxDefaultPeripherals<'a> {
     pub usart3: crate::usart::Usart<'a>,
     // pub dma_streams: [crate::dma1::Stream<'a>; 8],
     // pub exti: &'a crate::exti::Exti<'a>,
-    // pub tim2: crate::tim2::Tim2<'a>,
+    pub tim2: crate::tim2::Tim2<'a>,
     // pub gpio_ports: crate::gpio::GpioPorts<'a>,
     // pub fsmc: crate::fsmc::Fsmc<'a>,
 }
@@ -36,9 +36,9 @@ impl<'a> Stm32mp15xxDefaultPeripherals<'a> {
         Self {
             usart2: crate::usart::Usart::new_usart2(rcc),
             usart3: crate::usart::Usart::new_usart3(rcc),
+            tim2: crate::tim2::Tim2::new(rcc),
             // dma_streams: crate::dma1::new_dma1_stream(dma),
             // exti,
-            // tim2: crate::tim2::Tim2::new(rcc),
             // gpio_ports: crate::gpio::GpioPorts::new(rcc, exti),
             // fsmc: crate::fsmc::Fsmc::new(
             //     [
