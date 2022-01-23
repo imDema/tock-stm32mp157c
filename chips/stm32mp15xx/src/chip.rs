@@ -6,7 +6,6 @@ use kernel::deferred_call;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
-// use crate::dma1;
 use crate::nvic;
 
 use crate::deferred_calls::DeferredCallTask;
@@ -20,41 +19,28 @@ pub struct Stm32mp15xx<'a, I: InterruptService<DeferredCallTask> + 'a> {
 pub struct Stm32mp15xxDefaultPeripherals<'a> {
     pub usart2: crate::usart::Usart<'a>,
     pub usart3: crate::usart::Usart<'a>,
-    // pub dma_streams: [crate::dma1::Stream<'a>; 8],
-    // pub exti: &'a crate::exti::Exti<'a>,
     pub tim2: crate::tim2::Tim2<'a>,
-    // pub gpio_ports: crate::gpio::GpioPorts<'a>,
-    // pub fsmc: crate::fsmc::Fsmc<'a>,
+    pub gpioa: crate::gpio::GpioPort<'a>,
+    pub gpiob: crate::gpio::GpioPort<'a>,
 }
 
 impl<'a> Stm32mp15xxDefaultPeripherals<'a> {
     pub fn new(
         rcc: &'a crate::rcc::Rcc,
-        // exti: &'a crate::exti::Exti<'a>,
-        // dma: &'a crate::dma1::Dma1<'a>,
     ) -> Self {
         Self {
             usart2: crate::usart::Usart::new_usart2(rcc),
             usart3: crate::usart::Usart::new_usart3(rcc),
             tim2: crate::tim2::Tim2::new(rcc),
-            // dma_streams: crate::dma1::new_dma1_stream(dma),
-            // exti,
-            // gpio_ports: crate::gpio::GpioPorts::new(rcc, exti),
-            // fsmc: crate::fsmc::Fsmc::new(
-            //     [
-            //         Some(crate::fsmc::FSMC_BANK1),
-            //         None,
-            //         Some(crate::fsmc::FSMC_BANK3),
-            //         None,
-            //     ],
-            //     rcc,
-            // ),
+            gpioa: crate::gpio::GpioPort::new(rcc, crate::gpio::PortId::GPIOA),
+            gpiob: crate::gpio::GpioPort::new(rcc, crate::gpio::PortId::GPIOB),
         }
     }
 
-    // pub fn setup_circular_deps(&'a self) {
-    //     self.gpio_ports.setup_circular_deps();
-    // }
+    pub fn setup_circular_deps(&'a self) {
+        self.gpioa.setup_circular_deps();
+        self.gpiob.setup_circular_deps();
+    }
 }
 
 impl<'a> InterruptService<DeferredCallTask> for Stm32mp15xxDefaultPeripherals<'a> {
@@ -63,52 +49,15 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32mp15xxDefaultPeripherals<'a
             nvic::USART2 => self.usart2.handle_interrupt(),
             nvic::USART3 => self.usart3.handle_interrupt(),
             
-            // nvic::DMA1_Stream1 => self.dma_streams
-            //     [dma1::Dma1Peripheral::USART3_RX.get_stream_idx()]
-            // .handle_interrupt(),
-            // nvic::DMA1_Stream2 => {
-            //     self.dma_streams[dma1::Dma1Peripheral::SPI3_RX.get_stream_idx()].handle_interrupt()
-            // }
-            // nvic::DMA1_Stream3 => self.dma_streams
-            //     [dma1::Dma1Peripheral::USART3_TX.get_stream_idx()]
-            // .handle_interrupt(),
-            // nvic::DMA1_Stream5 => self.dma_streams
-            //     [dma1::Dma1Peripheral::USART2_RX.get_stream_idx()]
-            // .handle_interrupt(),
-            // nvic::DMA1_Stream6 => self.dma_streams
-            //     [dma1::Dma1Peripheral::USART2_TX.get_stream_idx()]
-            // .handle_interrupt(),
-            // nvic::DMA1_Stream7 => {
-            //     self.dma_streams[dma1::Dma1Peripheral::SPI3_TX.get_stream_idx()].handle_interrupt()
-            // }
-
-
-            // nvic::ADC => self.adc1.handle_interrupt(),
-
-            // nvic::I2C1_EV => self.i2c1.handle_event(),
-            // nvic::I2C1_ER => self.i2c1.handle_error(),
-
-            // nvic::SPI3 => self.spi3.handle_interrupt(),
-
-            // nvic::EXTI0 => self.exti.handle_interrupt(),
-            // nvic::EXTI1 => self.exti.handle_interrupt(),
-            // nvic::EXTI2 => self.exti.handle_interrupt(),
-            // nvic::EXTI3 => self.exti.handle_interrupt(),
-            // nvic::EXTI4 => self.exti.handle_interrupt(),
-            // nvic::EXTI9_5 => self.exti.handle_interrupt(),
-            // nvic::EXTI15_10 => self.exti.handle_interrupt(),
-
-            // nvic::TIM2 => self.tim2.handle_interrupt(),
-
             _ => return false,
         }
         true
     }
 
-    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-        match task {
-            // DeferredCallTask::Fsmc => self.fsmc.handle_interrupt(),
-        }
+    unsafe fn service_deferred_call(&self, _task: DeferredCallTask) -> bool {
+        // match task {
+        //     // DeferredCallTask::Fsmc => self.fsmc.handle_interrupt(),
+        // }
         true
     }
 }

@@ -55,6 +55,34 @@ impl Rcc {
     fn disable_usart3_clock(&self) {
         self.registers.mc_apb1ensetr.modify(MC_APB1ENSETR::USART3EN::CLEAR)
     }
+
+    // GPIOA clock
+
+    fn is_enabled_gpioa_clock(&self) -> bool {
+        self.registers.mc_ahb4ensetr.is_set(MC_AHB4ENSETR::GPIOAEN)
+    }
+
+    fn enable_gpioa_clock(&self) {
+        self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOAEN::SET)
+    }
+
+    fn disable_gpioa_clock(&self) {
+        self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOAEN::CLEAR)
+    }
+
+    // GPIOB clock
+    
+    fn is_enabled_gpiob_clock(&self) -> bool {
+        self.registers.mc_ahb4ensetr.is_set(MC_AHB4ENSETR::GPIOBEN)
+    }
+
+    fn enable_gpiob_clock(&self) {
+        self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOBEN::SET)
+    }
+
+    fn disable_gpiob_clock(&self) {
+        self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOBEN::CLEAR)
+    }
 }
 
 pub struct PeripheralClock<'a> {
@@ -71,6 +99,7 @@ impl<'a> PeripheralClock<'a> {
 /// Bus + Clock name for the peripherals
 pub enum PeripheralClockType {
     APB1(PCLK1),
+    AHB4(PCLK2)
 }
 
 /// Peripherals clocked by PCLK1
@@ -80,6 +109,12 @@ pub enum PCLK1 {
     TIM2,
 }
 
+/// Peripherals clocked by PCLK2
+pub enum PCLK2 {
+    GPIOA,
+    GPIOB,
+}
+
 impl<'a> ClockInterface for PeripheralClock<'a> {
     fn is_enabled(&self) -> bool {
         match self.clock {
@@ -87,6 +122,10 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 PCLK1::USART2 => self.rcc.is_enabled_usart2_clock(),
                 PCLK1::USART3 => self.rcc.is_enabled_usart3_clock(),
                 PCLK1::TIM2 => self.rcc.is_enabled_tim2_clock(),
+            }
+            PeripheralClockType::AHB4(ref v) => match v {
+                PCLK2::GPIOA => self.rcc.is_enabled_gpioa_clock(),
+                PCLK2::GPIOB => self.rcc.is_enabled_gpiob_clock(),
             }
         }
     }
@@ -98,6 +137,10 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 PCLK1::USART3 => self.rcc.enable_usart3_clock(),
                 PCLK1::TIM2 => self.rcc.enable_tim2_clock(),
             }
+            PeripheralClockType::AHB4(ref v) => match v {
+                PCLK2::GPIOA => self.rcc.enable_gpioa_clock(),
+                PCLK2::GPIOB => self.rcc.enable_gpiob_clock(),
+            }
         }
     }
 
@@ -107,6 +150,10 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 PCLK1::USART2 => self.rcc.disable_usart2_clock(),
                 PCLK1::USART3 => self.rcc.disable_usart3_clock(),
                 PCLK1::TIM2 => self.rcc.disable_tim2_clock(),
+            }
+            PeripheralClockType::AHB4(ref v) => match v {
+                PCLK2::GPIOA => self.rcc.disable_gpioa_clock(),
+                PCLK2::GPIOB => self.rcc.disable_gpiob_clock(),
             }
         }
     }

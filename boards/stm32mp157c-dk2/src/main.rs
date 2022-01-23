@@ -13,6 +13,7 @@ use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::hil::led::LedLow;
 // use kernel::hil::gpio::Configure;
 // use kernel::hil::gpio::Output;
 // use kernel::hil::led::LedHigh;
@@ -43,19 +44,19 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1400] = [0; 0x1400];
+pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Stm32mp157cDiscovery {
     console: &'static capsules::console::Console<'static>,
     // ipc: kernel::ipc::IPC<NUM_PROCS>,
-    // gpio: &'static capsules::gpio::GPIO<'static, stm32mp15xx::gpio::Pin<'static>>,
-    // led: &'static capsules::led::LedDriver<
-    //     'static,
-    //     LedHigh<'static, stm32mp15xx::gpio::Pin<'static>>,
-    //     8,
-    // >,
+    // gpio: &'static capsules::gpio::GPIO<'static, stm32mp15xx::gpio::GpioPin<'static>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedLow<'static, stm32mp15xx::gpio::GpioPin<'static>>,
+        2,
+    >,
     // button: &'static capsules::button::Button<'static, stm32mp15xx::gpio::Pin<'static>>,
     // ninedof: &'static capsules::ninedof::NineDof<'static>,
     // l3gd20: &'static capsules::l3gd20::L3gd20Spi<'static>,
@@ -82,10 +83,9 @@ impl SyscallDriverLookup for Stm32mp157cDiscovery {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-
-            // capsules::led::DRIVER_NUM => f(Some(self.led)),
-            // capsules::button::DRIVER_NUM => f(Some(self.button)),
             // capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            // capsules::button::DRIVER_NUM => f(Some(self.button)),
             // capsules::l3gd20::DRIVER_NUM => f(Some(self.l3gd20)),
             // capsules::lsm303dlhc::DRIVER_NUM => f(Some(self.lsm303dlhc)),
             // capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
@@ -154,20 +154,9 @@ unsafe fn setup_peripherals(tim2: &stm32mp15xx::tim2::Tim2) {
 #[inline(never)]
 unsafe fn get_peripherals() -> (
     &'static mut Stm32mp15xxDefaultPeripherals<'static>,
-    // &'static stm32mp15xx::syscfg::Syscfg<'static>,
     &'static stm32mp15xx::rcc::Rcc,
 ) {
-    // We use the default HSI 8Mhz clock
-
     let rcc = static_init!(stm32mp15xx::rcc::Rcc, stm32mp15xx::rcc::Rcc::new());
-    // let syscfg = static_init!(
-    //     stm32mp15xx::syscfg::Syscfg,
-    //     stm32mp15xx::syscfg::Syscfg::new(rcc)
-    // );
-    // let exti = static_init!(
-    //     stm32mp15xx::exti::Exti,
-    //     stm32mp15xx::exti::Exti::new(syscfg)
-    // );
 
     let peripherals = static_init!(
         Stm32mp15xxDefaultPeripherals,
@@ -177,6 +166,32 @@ unsafe fn get_peripherals() -> (
     (peripherals, rcc)
 }
 
+
+/// Helper function called during bring-up that configures multiplexed I/O.
+unsafe fn set_pin_primary_functions(
+    gpioa: &'static stm32mp15xx::gpio::GpioPort<'static>,
+    gpiob: &'static stm32mp15xx::gpio::GpioPort<'static>,
+) {
+    use stm32mp15xx::gpio::{AlternateFunction, Mode, PinId, PortId};
+
+    gpioa.enable_clock();
+    gpiob.enable_clock();
+
+    // gpio_ports.get_pin(PinId::PE14).map(|pin| {
+    //     pin.make_output();
+    //     pin.set();
+    // });
+
+    // // User LD4 is connected to PA14. Configure PA14 as `debug_gpio!(0, ...)`
+    // gpio_ports.get_pin(PinId::PE09).map(|pin| {
+    //     pin.make_output();
+
+    //     // Configure kernel debug gpios as early as possible
+    //     kernel::debug::assign_gpios(Some(pin), None, None);
+    // });
+}
+
+
 /// Main function.
 ///
 /// This is called after RAM initialization is complete.
@@ -185,14 +200,12 @@ pub unsafe fn main() {
     stm32mp15xx::init();
 
     let (peripherals, _rcc) = get_peripherals();
-    // peripherals.setup_circular_deps();
+    peripherals.setup_circular_deps();
 
-    // set_pin_primary_functions(
-    //     syscfg,
-    //     &peripherals.spi1,
-    //     &peripherals.i2c1,
-    //     &peripherals.gpio_ports,
-    // );
+    set_pin_primary_functions(
+        &peripherals.gpioa,
+        &peripherals.gpiob,
+    );
 
     setup_peripherals(&peripherals.tim2);
 
@@ -210,6 +223,14 @@ pub unsafe fn main() {
         stm32mp15xx::chip::Stm32mp15xx::new(peripherals)
     );
     CHIP = Some(chip);
+
+    // LED
+
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        LedLow<'static, stm32mp15xx::gpio::GpioPin<'static>>,
+        LedLow::new(&peripherals.gpioa[14]),
+        LedLow::new(&peripherals.gpioa[13]),
+    ));
 
     // UART
 
@@ -277,8 +298,10 @@ pub unsafe fn main() {
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
     let stm32mp157cdiscovery = Stm32mp157cDiscovery {
-        console: console,
-        alarm: alarm,
+        console,
+        led,
+        // gpio,
+        alarm,
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
     };

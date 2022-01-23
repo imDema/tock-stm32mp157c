@@ -64,21 +64,19 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
-    // User LD3 is connected to PE09
     // Have to reinitialize several peripherals because otherwise can't access them here.
-    // let rcc = stm32mp15xx::rcc::Rcc::new();
+    let rcc = stm32mp15xx::rcc::Rcc::new();
     // let syscfg = stm32mp15xx::syscfg::Syscfg::new(&rcc);
     // let exti = stm32mp15xx::exti::Exti::new(&syscfg);
-    // let pin = stm32mp15xx::gpio::Pin::new(PinId::PE09, &exti);
-    // let gpio_ports = stm32mp15xx::gpio::GpioPorts::new(&rcc, &exti);
-    // pin.set_ports_ref(&gpio_ports);
-    // let led = &mut led::LedHigh::new(&pin);
+    let gpioa = stm32mp15xx::gpio::GpioPort::new(&rcc, stm32mp15xx::gpio::PortId::GPIOA);
+    let pin = &gpioa[13];
+    pin.set_ports_ref(&gpioa);
+
+    let led = &mut led::LedLow::new(pin);
     let writer = &mut WRITER;
 
-    let mut leds: [&FakeLed; 0] = [];
-
     debug::panic(
-        &mut leds[..],
+        &mut [led],
         writer,
         info,
         &cortexm4::support::nop,
@@ -86,28 +84,4 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
         &CHIP,
         &PROCESS_PRINTER,
     )
-}
-
-struct FakeLed();
-
-impl led::Led for FakeLed {
-    fn init(&self) {
-        
-    }
-
-    fn on(&self) {
-        
-    }
-
-    fn off(&self) {
-        
-    }
-
-    fn toggle(&self) {
-        
-    }
-
-    fn read(&self) -> bool {
-        false
-    }
 }

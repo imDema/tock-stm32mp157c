@@ -13,18 +13,10 @@ mod deferred_calls;
 pub mod nvic;
 
 // Peripherals
-// pub mod adc;
-// pub mod dma1;
-// pub mod exti;
-// pub mod flash;
-// pub mod gpio;
-// pub mod i2c;
+pub mod gpio;
 pub mod rcc;
-// pub mod spi;
-// pub mod syscfg;
 pub mod tim2;
 pub mod usart;
-// pub mod wdt;
 
 use cortexm4::{
     generic_isr, hard_fault_handler, initialize_ram_jump_to_main, svc_handler, systick_handler,

@@ -5,9 +5,6 @@ PLATFORM=stm32mp157c-dk2
 
 include ../../tock/boards/Makefile.common
 
-OPENOCD=openocd
-OPENOCD_OPTIONS=-f openocd.cfg
-
 # Default target for installing the kernel.
 .PHONY: install
 install: flash
@@ -22,4 +19,5 @@ install: flash
 
 .PHONY: program
 program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(info ELF created)
+	$(Q)$(OBJCOPY) --output-target=elf32-littlearm $(OBJCOPY_FLAGS) $< $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+	$(Q)$(SHA256SUM) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
