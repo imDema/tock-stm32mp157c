@@ -19,5 +19,5 @@ install: flash
 
 .PHONY: program
 program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(Q)$(OBJCOPY) --output-target=elf32-littlearm $(OBJCOPY_FLAGS) $< $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+	$(Q)$(OBJCOPY) --output-target=elf32-littlearm -S --remove-section .apps $< $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	$(Q)$(SHA256SUM) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin

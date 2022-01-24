@@ -66,14 +66,10 @@ SECTIONS
          _estack = .;
     } > ram
 
-
-    /* STATIC ELEMENTS FOR TOCK KERNEL */
-    .text :
+    /* The startup code into ROM memory */
+    .isr_vector :
     {
-        . = ALIGN(4);
-        _textstart = .;         /* Symbol expected by some MS build toolchains */
-        _stext = .;         /* First of standard s,e (start/end) pair */
-
+      . = ALIGN(4);
         /* Place vector table at the beginning of ROM.
          *
          * The first 16 entries in the ARM vector table are defined by ARM and
@@ -84,6 +80,16 @@ SECTIONS
          */
         KEEP(*(.vectors .vectors.*))
         KEEP(*(.irqs))
+      . = ALIGN(4);
+    } > interrupts
+
+    /* STATIC ELEMENTS FOR TOCK KERNEL */
+    .text :
+    {
+        . = ALIGN(4);
+        _textstart = .;         /* Symbol expected by some MS build toolchains */
+        _stext = .;         /* First of standard s,e (start/end) pair */
+
 
         /* .text and .rodata hold most program code and immutable constants */
         /* .gnu.linkonce hold C++ elements with vague linkage
@@ -149,12 +155,15 @@ SECTIONS
         /* End constructor/destructor */
     } > rom
 
-    /*
-     * Remoteproc resource table
-     */
-    .resource_table : {
-      KEEP(*(.resource_table))
-    } > rom
+   /*
+    * Remoteproc resource table
+    */
+    .resource_table :
+    {
+      . = ALIGN(4);
+      KEEP (*(.resource_table*))
+      . = ALIGN(4);
+    } > ram
 
 
     /* ARM Exception support
@@ -233,11 +242,6 @@ SECTIONS
     } > prog
     /* _eapps symbol used by tock to calculate the length of app flash */
     _eapps = _sapps + LENGTH(prog);
-
-
-
-
-
 
 
     /* Kernel data that must be relocated. This is program data that is

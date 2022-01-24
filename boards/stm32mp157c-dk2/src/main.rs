@@ -25,6 +25,7 @@ use stm32mp15xx::chip::Stm32mp15xxDefaultPeripherals;
 
 /// Support routines for debugging I/O.
 pub mod io;
+pub mod resource_table;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
@@ -172,7 +173,7 @@ unsafe fn set_pin_primary_functions(
     gpioa: &'static stm32mp15xx::gpio::GpioPort<'static>,
     gpiob: &'static stm32mp15xx::gpio::GpioPort<'static>,
 ) {
-    use stm32mp15xx::gpio::{AlternateFunction, Mode, PinId, PortId};
+    // use stm32mp15xx::gpio::{AlternateFunction, Mode, PinId, PortId};
 
     gpioa.enable_clock();
     gpiob.enable_clock();
@@ -197,7 +198,6 @@ unsafe fn set_pin_primary_functions(
 /// This is called after RAM initialization is complete.
 #[no_mangle]
 pub unsafe fn main() {
-    panic!();
     stm32mp15xx::init();
 
     let (peripherals, _rcc) = get_peripherals();

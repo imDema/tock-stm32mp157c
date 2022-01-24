@@ -41,10 +41,11 @@ impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
         let rcc = stm32mp15xx::rcc::Rcc::new();
         let uart = stm32mp15xx::usart::Usart::new_usart3(&rcc);
-
+        
         if !self.initialized {
             self.initialized = true;
-
+            
+            uart.enable_clock();
             let _ = uart.configure(uart::Parameters {
                 baud_rate: 11500,
                 stop_bits: uart::StopBits::One,
@@ -69,36 +70,28 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     // let syscfg = stm32mp15xx::syscfg::Syscfg::new(&rcc);
     // let exti = stm32mp15xx::exti::Exti::new(&syscfg);
 
-    // Blink whatever we can
-
-    let gpioh = stm32mp15xx::gpio::GpioPort::new(&rcc, stm32mp15xx::gpio::PortId::GPIOH);
-    gpioh.enable_clock();
-    let pin1 = &gpioh[7];
-    pin1.set_ports_ref(&gpioh);
-
     let gpioa = stm32mp15xx::gpio::GpioPort::new(&rcc, stm32mp15xx::gpio::PortId::GPIOA);
     gpioa.enable_clock();
-    let pin2 = &gpioa[13];
-    pin2.set_ports_ref(&gpioa);
-    let pin3 = &gpioa[14];
-    pin3.set_ports_ref(&gpioa);
+    let pa13 = &gpioa[13];
+    pa13.set_ports_ref(&gpioa);
+    // let pa14 = &gpioa[14];
+    // pa14.set_ports_ref(&gpioa);
 
 
-    let led1 = &mut led::LedHigh::new(pin1);
-    let led2 = &mut led::LedLow::new(pin2);
-    let led3 = &mut led::LedLow::new(pin3);
+    // let ld5 = &mut led::LedLow::new(pa14);
+    let ld6 = &mut led::LedLow::new(pa13); // RED
 
-    debug::panic_blink_forever(&mut [led1, led2, led3]);
+    // debug::panic_blink_forever(&mut [led1]);
 
-    // let writer = &mut WRITER;
+    let writer = &mut WRITER;
 
-    // debug::panic(
-    //     &mut [led],
-    //     writer,
-    //     info,
-    //     &cortexm4::support::nop,
-    //     &PROCESSES,
-    //     &CHIP,
-    //     &PROCESS_PRINTER,
-    // )
+    debug::panic(
+        &mut [ld6],
+        writer,
+        info,
+        &cortexm4::support::nop,
+        &PROCESSES,
+        &CHIP,
+        &PROCESS_PRINTER,
+    )
 }
