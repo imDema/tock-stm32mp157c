@@ -197,6 +197,7 @@ unsafe fn set_pin_primary_functions(
 /// This is called after RAM initialization is complete.
 #[no_mangle]
 pub unsafe fn main() {
+    panic!();
     stm32mp15xx::init();
 
     let (peripherals, _rcc) = get_peripherals();

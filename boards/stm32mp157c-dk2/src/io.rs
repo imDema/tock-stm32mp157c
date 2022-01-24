@@ -68,20 +68,37 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     let rcc = stm32mp15xx::rcc::Rcc::new();
     // let syscfg = stm32mp15xx::syscfg::Syscfg::new(&rcc);
     // let exti = stm32mp15xx::exti::Exti::new(&syscfg);
+
+    // Blink whatever we can
+
+    let gpioh = stm32mp15xx::gpio::GpioPort::new(&rcc, stm32mp15xx::gpio::PortId::GPIOH);
+    gpioh.enable_clock();
+    let pin1 = &gpioh[7];
+    pin1.set_ports_ref(&gpioh);
+
     let gpioa = stm32mp15xx::gpio::GpioPort::new(&rcc, stm32mp15xx::gpio::PortId::GPIOA);
-    let pin = &gpioa[13];
-    pin.set_ports_ref(&gpioa);
+    gpioa.enable_clock();
+    let pin2 = &gpioa[13];
+    pin2.set_ports_ref(&gpioa);
+    let pin3 = &gpioa[14];
+    pin3.set_ports_ref(&gpioa);
 
-    let led = &mut led::LedLow::new(pin);
-    let writer = &mut WRITER;
 
-    debug::panic(
-        &mut [led],
-        writer,
-        info,
-        &cortexm4::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
-    )
+    let led1 = &mut led::LedHigh::new(pin1);
+    let led2 = &mut led::LedLow::new(pin2);
+    let led3 = &mut led::LedLow::new(pin3);
+
+    debug::panic_blink_forever(&mut [led1, led2, led3]);
+
+    // let writer = &mut WRITER;
+
+    // debug::panic(
+    //     &mut [led],
+    //     writer,
+    //     info,
+    //     &cortexm4::support::nop,
+    //     &PROCESSES,
+    //     &CHIP,
+    //     &PROCESS_PRINTER,
+    // )
 }

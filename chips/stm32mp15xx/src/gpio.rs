@@ -17,6 +17,8 @@ use crate::rcc;
 pub enum PortId {
     GPIOA,
     GPIOB,
+    GPIOG,
+    GPIOH,
 }
 
 #[rustfmt::skip]
@@ -176,16 +178,6 @@ impl<'a> GpioPin<'a> {
     pub fn get_pinid(&self) -> PinId {
         self.pinid
     }
-
-    // pub unsafe fn enable_interrupt(&'static self) {
-    //     let exti_line_id = LineId::from_u8(self.pinid as u8).unwrap();
-
-    //     self.exti.associate_line_gpiopin(exti_line_id, &self);
-    // }
-
-    // pub fn set_exti_lineid(&self, lineid: exti::LineId) {
-    //     self.exti_lineid.set(lineid);
-    // }
 
     fn set_mode_output_pushpull(&self) {
         let port = self.ports_ref.unwrap_or_panic(); // Unwrap fail =
@@ -532,10 +524,20 @@ impl<'a> GpioPort<'a> {
                 rcc::PeripheralClockType::AHB4(rcc::PCLK2::GPIOB),
                 rcc,
             )),
+            PortId::GPIOG => PortClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::AHB4(rcc::PCLK2::GPIOG),
+                rcc,
+            )),
+            PortId::GPIOH => PortClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::AHB4(rcc::PCLK2::GPIOH),
+                rcc,
+            )),
         };
         let registers = match port {
             PortId::GPIOA => GPIOA_BASE,
             PortId::GPIOB => GPIOB_BASE,
+            PortId::GPIOG => GPIOG_BASE,
+            PortId::GPIOH => GPIOH_BASE,
         };
         Self {
             pins,
@@ -1129,3 +1131,7 @@ const GPIOA_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x50002000 as *const GpioRegisters) };
 const GPIOB_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x50003000 as *const GpioRegisters) };
+const GPIOG_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x50008000 as *const GpioRegisters) };
+const GPIOH_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x50009000 as *const GpioRegisters) };

@@ -58,30 +58,31 @@ impl Rcc {
 
     // GPIOA clock
 
-    fn is_enabled_gpioa_clock(&self) -> bool {
-        self.registers.mc_ahb4ensetr.is_set(MC_AHB4ENSETR::GPIOAEN)
+    fn is_enabled_pclk2_clock(&self, peripheral: &PCLK2) -> bool {
+        match peripheral {
+            PCLK2::GPIOA => self.registers.mc_ahb4ensetr.is_set(MC_AHB4ENSETR::GPIOAEN),
+            PCLK2::GPIOB => self.registers.mc_ahb4ensetr.is_set(MC_AHB4ENSETR::GPIOBEN),
+            PCLK2::GPIOG => self.registers.mc_ahb4ensetr.is_set(MC_AHB4ENSETR::GPIOGEN),
+            PCLK2::GPIOH => self.registers.mc_ahb4ensetr.is_set(MC_AHB4ENSETR::GPIOHEN),
+        }
     }
 
-    fn enable_gpioa_clock(&self) {
-        self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOAEN::SET)
+    fn enable_pclk2_clock(&self, peripheral: &PCLK2) {
+        match peripheral {
+            PCLK2::GPIOA => self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOAEN::SET),
+            PCLK2::GPIOB => self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOBEN::SET),
+            PCLK2::GPIOG => self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOGEN::SET),
+            PCLK2::GPIOH => self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOHEN::SET),
+        }
     }
 
-    fn disable_gpioa_clock(&self) {
-        self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOAEN::CLEAR)
-    }
-
-    // GPIOB clock
-    
-    fn is_enabled_gpiob_clock(&self) -> bool {
-        self.registers.mc_ahb4ensetr.is_set(MC_AHB4ENSETR::GPIOBEN)
-    }
-
-    fn enable_gpiob_clock(&self) {
-        self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOBEN::SET)
-    }
-
-    fn disable_gpiob_clock(&self) {
-        self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOBEN::CLEAR)
+    fn disable_pclk2_clock(&self, peripheral: &PCLK2) {
+        match peripheral {
+            PCLK2::GPIOA => self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOAEN::CLEAR),
+            PCLK2::GPIOB => self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOBEN::CLEAR),
+            PCLK2::GPIOG => self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOGEN::CLEAR),
+            PCLK2::GPIOH => self.registers.mc_ahb4ensetr.modify(MC_AHB4ENSETR::GPIOHEN::CLEAR),
+        }
     }
 }
 
@@ -113,6 +114,8 @@ pub enum PCLK1 {
 pub enum PCLK2 {
     GPIOA,
     GPIOB,
+    GPIOG,
+    GPIOH,
 }
 
 impl<'a> ClockInterface for PeripheralClock<'a> {
@@ -123,9 +126,8 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 PCLK1::USART3 => self.rcc.is_enabled_usart3_clock(),
                 PCLK1::TIM2 => self.rcc.is_enabled_tim2_clock(),
             }
-            PeripheralClockType::AHB4(ref v) => match v {
-                PCLK2::GPIOA => self.rcc.is_enabled_gpioa_clock(),
-                PCLK2::GPIOB => self.rcc.is_enabled_gpiob_clock(),
+            PeripheralClockType::AHB4(ref v) => {
+                self.rcc.is_enabled_pclk2_clock(v)
             }
         }
     }
@@ -137,9 +139,8 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 PCLK1::USART3 => self.rcc.enable_usart3_clock(),
                 PCLK1::TIM2 => self.rcc.enable_tim2_clock(),
             }
-            PeripheralClockType::AHB4(ref v) => match v {
-                PCLK2::GPIOA => self.rcc.enable_gpioa_clock(),
-                PCLK2::GPIOB => self.rcc.enable_gpiob_clock(),
+            PeripheralClockType::AHB4(ref v) => {
+                self.rcc.enable_pclk2_clock(v)
             }
         }
     }
@@ -151,9 +152,8 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 PCLK1::USART3 => self.rcc.disable_usart3_clock(),
                 PCLK1::TIM2 => self.rcc.disable_tim2_clock(),
             }
-            PeripheralClockType::AHB4(ref v) => match v {
-                PCLK2::GPIOA => self.rcc.disable_gpioa_clock(),
-                PCLK2::GPIOB => self.rcc.disable_gpiob_clock(),
+            PeripheralClockType::AHB4(ref v) => {
+                self.rcc.disable_pclk2_clock(v)
             }
         }
     }
