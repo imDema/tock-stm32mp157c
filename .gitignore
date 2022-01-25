@@ -1,3 +1,4 @@
 /target
 generated.rs
 log.txt
+*.svd
