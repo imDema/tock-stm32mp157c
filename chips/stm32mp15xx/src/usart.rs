@@ -66,11 +66,21 @@ impl<'a> Usart<'a> {
         }
     }
 
+    pub const fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
+        Self::new(
+            USART1_BASE,
+            UsartClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::USART1,
+                rcc,
+            )),
+        )
+    }
+
     pub const fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART2_BASE,
             UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
+                rcc::PeripheralClockType::USART2,
                 rcc,
             )),
         )
@@ -80,7 +90,7 @@ impl<'a> Usart<'a> {
         Self::new(
             USART3_BASE,
             UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART3),
+                rcc::PeripheralClockType::USART3,
                 rcc,
             )),
         )
@@ -725,6 +735,9 @@ SIDR [
     SID OFFSET(0) NUMBITS(32) []
 ]
 ];
+const USART1_BASE: StaticRef<UsartRegisters> = 
+    unsafe { StaticRef::new(0x5C000000 as *const UsartRegisters) }; 
+
 const USART3_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x4000F000 as *const UsartRegisters) };
 

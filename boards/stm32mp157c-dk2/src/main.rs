@@ -13,7 +13,9 @@ use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedLow;
+use kernel::hil::uart::Transmit;
 // use kernel::hil::gpio::Configure;
 // use kernel::hil::gpio::Output;
 // use kernel::hil::led::LedHigh;
@@ -22,6 +24,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 use stm32mp15xx::chip::Stm32mp15xxDefaultPeripherals;
+use stm32mp15xx::gpio::Mode;
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -192,12 +195,54 @@ unsafe fn set_pin_primary_functions(
     // });
 }
 
+fn run_test() {
+    use kernel::hil::led::*;
+    let rcc = stm32mp15xx::rcc::Rcc::new();
+    let gpioa = stm32mp15xx::gpio::GpioPort::new(&rcc, stm32mp15xx::gpio::PortId::GPIOA);
+    gpioa.enable_clock();
+    let gpioh = stm32mp15xx::gpio::GpioPort::new(&rcc, stm32mp15xx::gpio::PortId::GPIOH);
+    gpioh.enable_clock();
+
+    let pa13 = &gpioa[13];
+    pa13.set_ports_ref(&gpioa);
+    let ld6 = &mut LedLow::new(pa13); // RED
+    
+    let pa14 = &gpioa[14];
+    pa14.set_ports_ref(&gpioa);
+    pa14.set_mode(Mode::GeneralPurposeOutputMode);
+    let ld5 = &mut LedLow::new(pa14); // GREEN
+
+    let ph7 = &gpioh[7];
+    ph7.set_ports_ref(&gpioh);
+    ph7.set_mode(Mode::GeneralPurposeOutputMode);
+    let ld7 = &mut LedHigh::new(ph7); // ORANGE
+
+    loop {
+        for _ in 0..500000 {
+            ld5.on();
+            ld6.off();
+            ld7.off()
+        }
+        for _ in 0..500000 {
+            ld5.off();
+            ld6.on();
+            ld7.off()
+        }
+        for _ in 0..500000 {
+            ld5.off();
+            ld6.off();
+            ld7.on()
+        } 
+    }
+}
 
 /// Main function.
 ///
 /// This is called after RAM initialization is complete.
 #[no_mangle]
 pub unsafe fn main() {
+    run_test();
+
     stm32mp15xx::init();
 
     let (peripherals, _rcc) = get_peripherals();

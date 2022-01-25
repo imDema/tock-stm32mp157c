@@ -517,19 +517,19 @@ impl<'a> GpioPort<'a> {
         ];
         let clock = match port {
             PortId::GPIOA => PortClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB4(rcc::PCLK2::GPIOA),
+                rcc::PeripheralClockType::GPIOA,
                 rcc,
             )),
             PortId::GPIOB => PortClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB4(rcc::PCLK2::GPIOB),
+                rcc::PeripheralClockType::GPIOB,
                 rcc,
             )),
             PortId::GPIOG => PortClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB4(rcc::PCLK2::GPIOG),
+                rcc::PeripheralClockType::GPIOG,
                 rcc,
             )),
             PortId::GPIOH => PortClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB4(rcc::PCLK2::GPIOH),
+                rcc::PeripheralClockType::GPIOH,
                 rcc,
             )),
         };

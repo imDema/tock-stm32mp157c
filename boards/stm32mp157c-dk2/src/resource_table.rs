@@ -73,34 +73,34 @@ pub struct Header {
 //     pub name: String32,
 // }
 
-// /// This is the structure for `ResourceType::VDEV`. It must be followed by the
-// /// appropriate number of `VdevVring` structures.
-// #[repr(C)]
-// #[derive(Debug)]
-// #[allow(dead_code)]
-// pub struct Vdev {
-//     pub rtype: ResourceType,
-//     pub id: u32,
-//     pub notifyid: u32,
-//     pub dfeatures: u32,
-//     pub gfeatures: u32,
-//     pub config_len: u32,
-//     pub status: u8,
-//     pub num_of_vrings: u8,
-//     pub reserved: [u8; 2],
-// }
+/// This is the structure for `ResourceType::VDEV`. It must be followed by the
+/// appropriate number of `VdevVring` structures.
+#[repr(C)]
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct Vdev {
+    pub rtype: ResourceType,
+    pub id: u32,
+    pub notifyid: u32,
+    pub dfeatures: u32,
+    pub gfeatures: u32,
+    pub config_len: u32,
+    pub status: u8,
+    pub num_of_vrings: u8,
+    pub reserved: [u8; 2],
+}
 
-// /// The individual vrings follow on from their `Vdev`.
-// #[repr(C)]
-// #[derive(Debug)]
-// #[allow(dead_code)]
-// pub struct VdevVring {
-//     pub da: usize,
-//     pub align: usize,
-//     pub num: usize,
-//     pub notifyid: u32,
-//     pub reserved: u32,
-// }
+/// The individual vrings follow on from their `Vdev`.
+#[repr(C)]
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct VdevVring {
+    pub da: usize,
+    pub align: usize,
+    pub num: usize,
+    pub notifyid: u32,
+    pub reserved: u32,
+}
 
 // pub trait AddressMapper {
 //     /// Convert a physical address (e.g. an L3/L4 address) to a device address the Cortex-M4 can use.
@@ -203,9 +203,9 @@ const NUM_ENTRIES: usize = 0;
 pub struct ResourceTable {
     base: Header,
     offsets: [usize; NUM_ENTRIES],
-    // rpmsg_vdev: Vdev,
-    // rpmsg_vring0: VdevVring,
-    // rpmsg_vring1: VdevVring,
+    rpmsg_vdev: Vdev,
+    rpmsg_vring0: VdevVring,
+    rpmsg_vring1: VdevVring,
     // trace: Trace,
 }
 
@@ -220,41 +220,41 @@ pub static RESOURCE_TABLE: ResourceTable = ResourceTable {
     // We don't have an offsetof macro so we have to calculate these by hand
     offsets: [
         // SZ_RT_HEADER,
-        // SZ_RT_HEADER + 68,
+        // SZ_RT_HEADER + 28,
         // SZ_RT_HEADER + 124,
         // SZ_RT_HEADER + 180,
         // SZ_RT_HEADER + 236,
     ],
 
-    // rpmsg_vdev: Vdev {
-    //     rtype: ResourceType::VDEV,
-    //     id: vring::VIRTIO_ID_RPMSG,
-    //     notifyid: 0,
-    //     dfeatures: 1,
-    //     gfeatures: 0,
-    //     config_len: 0,
-    //     status: 0,
-    //     num_of_vrings: 2,
-    //     reserved: [0, 0],
-    // },
+    rpmsg_vdev: Vdev {
+        rtype: ResourceType::VDEV,
+        id: 7,
+        notifyid: 0,
+        dfeatures: 1,
+        gfeatures: 0,
+        config_len: 0,
+        status: 0,
+        num_of_vrings: 2,
+        reserved: [0, 0],
+    },
 
-    // /// vring0 is for rproc-to-Linux comms
-    // rpmsg_vring0: VdevVring {
-    //     da: 0x60000000,
-    //     align: 4096,
-    //     num: 256,
-    //     notifyid: 1,
-    //     reserved: 0,
-    // },
+    /// vring0 is for rproc-to-Linux comms
+    rpmsg_vring0: VdevVring {
+        da: 0x10040400,
+        align: 4,
+        num: 4,
+        notifyid: 0,
+        reserved: 0,
+    },
 
-    // /// vring1 is for Linux-to-rproc comms
-    // rpmsg_vring1: VdevVring {
-    //     da: 0x60004000,
-    //     align: 4096,
-    //     num: 256,
-    //     notifyid: 2,
-    //     reserved: 0,
-    // },
+    /// vring1 is for Linux-to-rproc comms
+    rpmsg_vring1: VdevVring {
+        da: 0x10040800,
+        align: 4,
+        num: 4,
+        notifyid: 1,
+        reserved: 0,
+    },
 
     // trace: Trace {
     //     rtype: ResourceType::TRACE,

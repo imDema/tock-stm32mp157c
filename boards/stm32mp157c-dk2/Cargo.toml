@@ -9,5 +9,5 @@ edition = "2021"
 components = { path = "../../tock/boards/components" }
 cortexm4 = { path = "../../tock/arch/cortex-m4" }
 capsules = { path = "../../tock/capsules" }
-kernel = { path = "../../tock/kernel", features = ["no_debug_panics"] }
+kernel = { path = "../../tock/kernel" }
 stm32mp15xx = { path = "../../chips/stm32mp15xx" }

@@ -40,7 +40,7 @@ impl Write for Writer {
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
         let rcc = stm32mp15xx::rcc::Rcc::new();
-        let uart = stm32mp15xx::usart::Usart::new_usart3(&rcc);
+        let uart = stm32mp15xx::usart::Usart::new_usart1(&rcc);
         
         if !self.initialized {
             self.initialized = true;
@@ -67,24 +67,14 @@ impl IoWrite for Writer {
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     // Have to reinitialize several peripherals because otherwise can't access them here.
     let rcc = stm32mp15xx::rcc::Rcc::new();
-    // let syscfg = stm32mp15xx::syscfg::Syscfg::new(&rcc);
-    // let exti = stm32mp15xx::exti::Exti::new(&syscfg);
 
     let gpioa = stm32mp15xx::gpio::GpioPort::new(&rcc, stm32mp15xx::gpio::PortId::GPIOA);
     gpioa.enable_clock();
     let pa13 = &gpioa[13];
     pa13.set_ports_ref(&gpioa);
-    // let pa14 = &gpioa[14];
-    // pa14.set_ports_ref(&gpioa);
-
-
-    // let ld5 = &mut led::LedLow::new(pa14);
     let ld6 = &mut led::LedLow::new(pa13); // RED
 
-    // debug::panic_blink_forever(&mut [led1]);
-
     let writer = &mut WRITER;
-
     debug::panic(
         &mut [ld6],
         writer,

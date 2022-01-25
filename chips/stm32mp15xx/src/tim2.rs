@@ -25,7 +25,7 @@ impl<'a> Tim2<'a> {
         Self {
             registers: BASE,
             clock: Tim2Clock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::TIM2),
+                rcc::PeripheralClockType::TIM2,
                 rcc,
             )),
             client: OptionalCell::empty(),
