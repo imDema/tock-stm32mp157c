@@ -165,6 +165,13 @@ SECTIONS
       . = ALIGN(4);
     } > ram
 
+    .tracebuffer :
+    {
+      . = ALIGN(4);
+      KEEP(*(.tracebuffer*))
+      .= ALIGN(4);
+    } > ipc
+
 
     /* ARM Exception support
      *

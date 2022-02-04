@@ -8,6 +8,8 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::fmt::Write;
+
 use capsules::virtual_alarm::VirtualMuxAlarm;
 // use components::gpio::GpioComponent;
 use kernel::capabilities;
@@ -217,23 +219,32 @@ fn run_test() {
     ph7.set_mode(Mode::GeneralPurposeOutputMode);
     let ld7 = &mut LedHigh::new(ph7); // ORANGE
 
-    loop {
-        for _ in 0..500000 {
-            ld5.on();
-            ld6.off();
-            ld7.off()
-        }
-        for _ in 0..500000 {
-            ld5.off();
-            ld6.on();
-            ld7.off()
-        }
-        for _ in 0..500000 {
-            ld5.off();
-            ld6.off();
-            ld7.on()
-        } 
+
+    for _ in 0..500000 {
+        ld5.on();
+        ld6.off();
+        ld7.off()
     }
+    for _ in 0..500000 {
+        ld5.off();
+        ld6.on();
+        ld7.off()
+    }
+    for _ in 0..500000 {
+        ld5.off();
+        ld6.off();
+        ld7.on()
+    }
+
+    ld5.on();
+    ld6.on();
+    ld7.on();
+
+    let log = stm32mp15xx::trace::get_trace();
+
+    let _ = writeln!(log, "PLEASE DO SOMETHING!!!");
+
+    panic!("TEST PLS RUN!!!");
 }
 
 /// Main function.
@@ -291,7 +302,7 @@ pub unsafe fn main() {
 
     // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.
-    io::WRITER.set_initialized();
+    // io::WRITER.set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
