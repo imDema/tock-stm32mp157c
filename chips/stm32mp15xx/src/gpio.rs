@@ -17,6 +17,7 @@ use crate::rcc;
 pub enum PortId {
     GPIOA,
     GPIOB,
+    GPIOD,
     GPIOG,
     GPIOH,
 }
@@ -24,10 +25,10 @@ pub enum PortId {
 #[rustfmt::skip]
 #[derive(Copy, Clone)]
 pub enum PinId {
-    Pin00, Pin01, Pin02, Pin03,
-    Pin04, Pin05, Pin06, Pin07,
-    Pin08, Pin09, Pin10, Pin11,
-    Pin12, Pin13, Pin14, Pin15,
+    Pin00 = 0,  Pin01 = 1,  Pin02 = 2,  Pin03 = 3,
+    Pin04 = 4,  Pin05 = 5,  Pin06 = 6,  Pin07 = 7,
+    Pin08 = 8,  Pin09 = 9,  Pin10 = 10, Pin11 = 11,
+    Pin12 = 12, Pin13 = 13, Pin14 = 14, Pin15 = 15,
 }
 
 enum_from_primitive! {
@@ -524,6 +525,10 @@ impl<'a> GpioPort<'a> {
                 rcc::PeripheralClockType::GPIOB,
                 rcc,
             )),
+            PortId::GPIOD => PortClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::GPIOD,
+                rcc,
+            )),
             PortId::GPIOG => PortClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::GPIOG,
                 rcc,
@@ -536,6 +541,7 @@ impl<'a> GpioPort<'a> {
         let registers = match port {
             PortId::GPIOA => GPIOA_BASE,
             PortId::GPIOB => GPIOB_BASE,
+            PortId::GPIOD => GPIOD_BASE,
             PortId::GPIOG => GPIOG_BASE,
             PortId::GPIOH => GPIOH_BASE,
         };
@@ -1131,6 +1137,8 @@ const GPIOA_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x50002000 as *const GpioRegisters) };
 const GPIOB_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x50003000 as *const GpioRegisters) };
+const GPIOD_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x50005000 as *const GpioRegisters) };
 const GPIOG_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x50008000 as *const GpioRegisters) };
 const GPIOH_BASE: StaticRef<GpioRegisters> =

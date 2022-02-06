@@ -16,7 +16,7 @@ use crate::PROCESS_PRINTER;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
-    trace: MapCell<trace::Trace<'static>>,
+    trace: MapCell<trace::TraceBuffer<'static>>,
 }
 
 /// Global static for debug writer

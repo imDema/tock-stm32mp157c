@@ -5,6 +5,8 @@
 
 use core::mem::size_of;
 
+use stm32mp15xx::trace::TRACE_BUF_SIZE;
+
 
 /// The types of entry you can have in a Resource Table.
 #[repr(u32)]
@@ -108,7 +110,7 @@ pub static RESOURCE_TABLE: ResourceTable = ResourceTable {
         /// section. Ideally we'd just take the address of our buffer
         /// but that's now allowed in a static variable definition.
         da: 0x10040000,
-        len: 2048,
+        len: TRACE_BUF_SIZE,
         reserved: 0,
         name: *b"cm4_log\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
     },

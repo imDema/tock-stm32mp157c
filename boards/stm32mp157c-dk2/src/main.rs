@@ -8,25 +8,16 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core::fmt::Write;
-
 use capsules::virtual_alarm::VirtualMuxAlarm;
-// use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
-use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedLow;
-use kernel::hil::uart::Transmit;
-// use kernel::hil::gpio::Configure;
-// use kernel::hil::gpio::Output;
-// use kernel::hil::led::LedHigh;
-// use kernel::hil::time::Counter;
+
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 use stm32mp15xx::chip::Stm32mp15xxDefaultPeripherals;
-use stm32mp15xx::gpio::Mode;
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -56,24 +47,17 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// capsules for this platform.
 struct Stm32mp157cDiscovery {
     console: &'static capsules::console::Console<'static>,
-    // ipc: kernel::ipc::IPC<NUM_PROCS>,
+    // GPIO Not included because of missing exti implementation
     // gpio: &'static capsules::gpio::GPIO<'static, stm32mp15xx::gpio::GpioPin<'static>>,
     led: &'static capsules::led::LedDriver<
         'static,
         LedLow<'static, stm32mp15xx::gpio::GpioPin<'static>>,
         2,
     >,
-    // button: &'static capsules::button::Button<'static, stm32mp15xx::gpio::Pin<'static>>,
-    // ninedof: &'static capsules::ninedof::NineDof<'static>,
-    // l3gd20: &'static capsules::l3gd20::L3gd20Spi<'static>,
-    // lsm303dlhc: &'static capsules::lsm303dlhc::Lsm303dlhcI2C<'static>,
-    // temp: &'static capsules::temperature::TemperatureSensor<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, stm32mp15xx::tim2::Tim2<'static>>,
+        VirtualMuxAlarm<'static, stm32mp15xx::tim::Tim<'static>>,
     >,
-    // adc: &'static capsules::adc::AdcVirtualized<'static>,
-    // nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -143,15 +127,6 @@ impl
     }
 }
 
-/// Helper function for miscellaneous peripheral functions
-unsafe fn setup_peripherals(tim2: &stm32mp15xx::tim2::Tim2) {
-    cortexm4::nvic::Nvic::new(stm32mp15xx::nvic::USART3).enable();
-
-    tim2.enable_clock();
-    let _ = tim2.start();
-    cortexm4::nvic::Nvic::new(stm32mp15xx::nvic::TIM2).enable();
-}
-
 /// Statically initialize the core peripherals for the chip.
 ///
 /// This is in a separate, inline(never) function so that its stack frame is
@@ -172,79 +147,27 @@ unsafe fn get_peripherals() -> (
     (peripherals, rcc)
 }
 
-
-/// Helper function called during bring-up that configures multiplexed I/O.
-unsafe fn set_pin_primary_functions(
-    gpioa: &'static stm32mp15xx::gpio::GpioPort<'static>,
-    gpiob: &'static stm32mp15xx::gpio::GpioPort<'static>,
-) {
-    // use stm32mp15xx::gpio::{AlternateFunction, Mode, PinId, PortId};
-
-    gpioa.enable_clock();
-    gpiob.enable_clock();
-
-    // gpio_ports.get_pin(PinId::PE14).map(|pin| {
-    //     pin.make_output();
-    //     pin.set();
-    // });
-
-    // // User LD4 is connected to PA14. Configure PA14 as `debug_gpio!(0, ...)`
-    // gpio_ports.get_pin(PinId::PE09).map(|pin| {
-    //     pin.make_output();
-
-    //     // Configure kernel debug gpios as early as possible
-    //     kernel::debug::assign_gpios(Some(pin), None, None);
-    // });
+/// Helper function for miscellaneous peripheral functions
+unsafe fn setup_timers(tims: &[&stm32mp15xx::tim::Tim]) {
+    for tim in tims {
+        tim.enable_clock();
+        tim.start();
+    }
 }
 
-fn run_test() {
-    use kernel::hil::led::*;
-    let rcc = stm32mp15xx::rcc::Rcc::new();
-    let gpioa = stm32mp15xx::gpio::GpioPort::new(&rcc, stm32mp15xx::gpio::PortId::GPIOA);
+/// Helper function called during bring-up that configures multiplexed I/O.
+unsafe fn setup_gpio(
+    gpioa: &'static stm32mp15xx::gpio::GpioPort<'static>,
+    gpiob: &'static stm32mp15xx::gpio::GpioPort<'static>,
+    gpiod: &'static stm32mp15xx::gpio::GpioPort<'static>,
+    gpioh: &'static stm32mp15xx::gpio::GpioPort<'static>,
+) {
     gpioa.enable_clock();
-    let gpioh = stm32mp15xx::gpio::GpioPort::new(&rcc, stm32mp15xx::gpio::PortId::GPIOH);
+    gpiob.enable_clock();
+    gpiod.enable_clock();
     gpioh.enable_clock();
 
-    let pa13 = &gpioa[13];
-    pa13.set_ports_ref(&gpioa);
-    let ld6 = &mut LedLow::new(pa13); // RED
-    
-    let pa14 = &gpioa[14];
-    pa14.set_ports_ref(&gpioa);
-    pa14.set_mode(Mode::GeneralPurposeOutputMode);
-    let ld5 = &mut LedLow::new(pa14); // GREEN
-
-    let ph7 = &gpioh[7];
-    ph7.set_ports_ref(&gpioh);
-    ph7.set_mode(Mode::GeneralPurposeOutputMode);
-    let ld7 = &mut LedHigh::new(ph7); // ORANGE
-
-
-    for _ in 0..500000 {
-        ld5.on();
-        ld6.off();
-        ld7.off()
-    }
-    for _ in 0..500000 {
-        ld5.off();
-        ld6.on();
-        ld7.off()
-    }
-    for _ in 0..500000 {
-        ld5.off();
-        ld6.off();
-        ld7.on()
-    }
-
-    ld5.on();
-    ld6.on();
-    ld7.on();
-
-    let log = stm32mp15xx::trace::get_trace();
-
-    let _ = writeln!(log, "PLEASE DO SOMETHING!!!");
-
-    panic!("TEST PLS RUN!!!");
+    /* Set pin default modes here */
 }
 
 /// Main function.
@@ -252,19 +175,26 @@ fn run_test() {
 /// This is called after RAM initialization is complete.
 #[no_mangle]
 pub unsafe fn main() {
-    run_test();
-
     stm32mp15xx::init();
+    let t = stm32mp15xx::trace::get_trace();
+    // writeln!(t, "Trace initialized").unwrap();
 
     let (peripherals, _rcc) = get_peripherals();
     peripherals.setup_circular_deps();
 
-    set_pin_primary_functions(
+    setup_gpio(
         &peripherals.gpioa,
         &peripherals.gpiob,
+        &peripherals.gpiod,
+        &peripherals.gpioh,
     );
 
-    setup_peripherals(&peripherals.tim2);
+    setup_timers(&[
+        &peripherals.tim2,
+        &peripherals.tim3,
+        &peripherals.tim4,
+        &peripherals.tim5,
+    ]);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     let dynamic_deferred_call_clients =
@@ -274,6 +204,7 @@ pub unsafe fn main() {
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
+
 
     let chip = static_init!(
         stm32mp15xx::chip::Stm32mp15xx<Stm32mp15xxDefaultPeripherals>,
@@ -292,13 +223,26 @@ pub unsafe fn main() {
     // UART
 
     // Create a shared UART channel for kernel debug.
+    peripherals.usart1.enable_clock();
+    peripherals.usart2.enable_clock();
     peripherals.usart3.enable_clock();
+    // let uart_mux = components::console::UartMuxComponent::new(
+    //     &peripherals.usart3,
+    //     115200,
+    //     dynamic_deferred_caller,
+    // )
+    // .finalize(());
+
     let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.usart3,
+        t,
         115200,
         dynamic_deferred_caller,
     )
     .finalize(());
+
+    // t.transmit_buffer(&mut TEST, 5).unwrap();
+
+    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.
@@ -306,7 +250,7 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+    let _memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
@@ -319,13 +263,13 @@ pub unsafe fn main() {
     )
     .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    // components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // ALARM
 
     let tim2 = &peripherals.tim2;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(tim2).finalize(
-        components::alarm_mux_component_helper!(stm32mp15xx::tim2::Tim2),
+        components::alarm_mux_component_helper!(stm32mp15xx::tim::Tim),
     );
 
     let alarm = components::alarm::AlarmDriverComponent::new(
@@ -333,7 +277,7 @@ pub unsafe fn main() {
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(stm32mp15xx::tim2::Tim2));
+    .finalize(components::alarm_component_helper!(stm32mp15xx::tim::Tim));
 
     let process_printer =
         components::process_printer::ProcessPrinterTextComponent::new().finalize(());
@@ -347,7 +291,7 @@ pub unsafe fn main() {
         process_printer,
     )
     .finalize(components::process_console_component_helper!(
-        stm32mp15xx::tim2::Tim2
+        stm32mp15xx::tim::Tim
     ));
     let _ = process_console.start();
 
@@ -360,7 +304,7 @@ pub unsafe fn main() {
         // gpio,
         alarm,
         scheduler,
-        systick: cortexm4::systick::SysTick::new(),
+        systick: cortexm4::systick::SysTick::new_with_calibration(64_000_000),
     };
 
     // // Optional kernel tests
@@ -368,7 +312,7 @@ pub unsafe fn main() {
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
-    debug!("Initialization complete. Entering main loop");
+    // debug!("Initialization complete. Entering main loop");
 
     /// These symbols are defined in the linker script.
     extern "C" {

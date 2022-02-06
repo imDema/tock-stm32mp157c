@@ -15,7 +15,7 @@ pub mod nvic;
 // Peripherals
 pub mod gpio;
 pub mod rcc;
-pub mod tim2;
+pub mod tim;
 pub mod usart;
 pub mod trace;
 // pub mod rpmsg;
@@ -223,5 +223,21 @@ pub static IRQS: [unsafe extern "C" fn(); 150] = [
 pub unsafe fn init() {
     cortexm4::nvic::disable_all();
     cortexm4::nvic::clear_all_pending();
-    cortexm4::nvic::enable_all();
+
+    // cortexm4::nvic::enable_all();
+
+    let enabled_interrupts = [
+        nvic::USART1,
+        nvic::USART2,
+        nvic::USART3,
+        nvic::TIM2,
+        nvic::TIM3,
+        nvic::TIM4,
+        nvic::TIM5,
+        nvic::RCC,
+    ];
+
+    for interrupt in enabled_interrupts {
+        cortexm4::nvic::Nvic::new(interrupt).enable()
+    }
 }

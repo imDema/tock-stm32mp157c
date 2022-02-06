@@ -17,11 +17,17 @@ pub struct Stm32mp15xx<'a, I: InterruptService<DeferredCallTask> + 'a> {
 }
 
 pub struct Stm32mp15xxDefaultPeripherals<'a> {
+    pub usart1: crate::usart::Usart<'a>,
     pub usart2: crate::usart::Usart<'a>,
     pub usart3: crate::usart::Usart<'a>,
-    pub tim2: crate::tim2::Tim2<'a>,
+    pub tim2: crate::tim::Tim<'a>,
+    pub tim3: crate::tim::Tim<'a>,
+    pub tim4: crate::tim::Tim<'a>,
+    pub tim5: crate::tim::Tim<'a>,
     pub gpioa: crate::gpio::GpioPort<'a>,
     pub gpiob: crate::gpio::GpioPort<'a>,
+    pub gpiod: crate::gpio::GpioPort<'a>,
+    pub gpioh: crate::gpio::GpioPort<'a>,
 }
 
 impl<'a> Stm32mp15xxDefaultPeripherals<'a> {
@@ -29,25 +35,38 @@ impl<'a> Stm32mp15xxDefaultPeripherals<'a> {
         rcc: &'a crate::rcc::Rcc,
     ) -> Self {
         Self {
+            usart1: crate::usart::Usart::new_usart1(rcc),
             usart2: crate::usart::Usart::new_usart2(rcc),
             usart3: crate::usart::Usart::new_usart3(rcc),
-            tim2: crate::tim2::Tim2::new(rcc),
+            tim2: crate::tim::Tim::new(rcc, crate::tim::TIMN::TIM2),
+            tim3: crate::tim::Tim::new(rcc, crate::tim::TIMN::TIM3),
+            tim4: crate::tim::Tim::new(rcc, crate::tim::TIMN::TIM4),
+            tim5: crate::tim::Tim::new(rcc, crate::tim::TIMN::TIM5),
             gpioa: crate::gpio::GpioPort::new(rcc, crate::gpio::PortId::GPIOA),
             gpiob: crate::gpio::GpioPort::new(rcc, crate::gpio::PortId::GPIOB),
+            gpiod: crate::gpio::GpioPort::new(rcc, crate::gpio::PortId::GPIOD),
+            gpioh: crate::gpio::GpioPort::new(rcc, crate::gpio::PortId::GPIOH),
         }
     }
 
     pub fn setup_circular_deps(&'a self) {
         self.gpioa.setup_circular_deps();
         self.gpiob.setup_circular_deps();
+        self.gpiod.setup_circular_deps();
+        self.gpioh.setup_circular_deps();
     }
 }
 
 impl<'a> InterruptService<DeferredCallTask> for Stm32mp15xxDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            nvic::USART2 => self.usart2.handle_interrupt(),
-            nvic::USART3 => self.usart3.handle_interrupt(),
+            nvic::USART1    => self.usart1.handle_interrupt(),
+            nvic::USART2    => self.usart2.handle_interrupt(),
+            nvic::USART3    => self.usart3.handle_interrupt(),
+            nvic::TIM2      => self.tim2.handle_interrupt(),
+            nvic::TIM3      => self.tim3.handle_interrupt(),
+            nvic::TIM4      => self.tim4.handle_interrupt(),
+            nvic::TIM5      => self.tim5.handle_interrupt(),
             
             _ => return false,
         }

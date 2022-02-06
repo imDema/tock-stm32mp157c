@@ -1,7 +1,7 @@
 use cortexm4;
 use cortexm4::support::atomic;
 use kernel::hil::time::{
-    Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time,
+    Alarm, AlarmClient, Counter, OverflowClient, Ticks, Ticks32, Time, Freq32KHz
 };
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::OptionalCell;
@@ -13,23 +13,49 @@ use kernel::ErrorCode;
 use crate::nvic;
 use crate::rcc;
 
-pub struct Tim2<'a> {
-    registers: StaticRef<Tim2Registers>,
-    clock: Tim2Clock<'a>,
+pub enum TIMN {
+    TIM2,
+    TIM3,
+    TIM4,
+    TIM5,
+}
+
+pub struct Tim<'a> {
+    registers: StaticRef<TimRegisters>,
+    clock: TimClock<'a>,
     client: OptionalCell<&'a dyn AlarmClient>,
     irqn: u32,
 }
 
-impl<'a> Tim2<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+impl<'a> Tim<'a> {
+    pub const fn new(rcc: &'a rcc::Rcc, n: TIMN) -> Self {
+        let registers = match n {
+            TIMN::TIM2 => BASE_TIM2,
+            TIMN::TIM3 => BASE_TIM3,
+            TIMN::TIM4 => BASE_TIM4,
+            TIMN::TIM5 => BASE_TIM5,
+        };
+        let clk = match n {
+            TIMN::TIM2 => rcc::PeripheralClockType::TIM2,
+            TIMN::TIM3 => rcc::PeripheralClockType::TIM3,
+            TIMN::TIM4 => rcc::PeripheralClockType::TIM4,
+            TIMN::TIM5 => rcc::PeripheralClockType::TIM5,
+        };
+        let irqn = match n {
+            TIMN::TIM2 => nvic::TIM2,
+            TIMN::TIM3 => nvic::TIM3,
+            TIMN::TIM4 => nvic::TIM4,
+            TIMN::TIM5 => nvic::TIM5,
+        };
+        
         Self {
-            registers: BASE,
-            clock: Tim2Clock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::TIM2,
+            registers,
+            clock: TimClock(rcc::PeripheralClock::new(
+                clk,
                 rcc,
             )),
             client: OptionalCell::empty(),
-            irqn: nvic::TIM2,
+            irqn,
         }
     }
 
@@ -53,21 +79,16 @@ impl<'a> Tim2<'a> {
 
     // starts the timer
     pub fn start(&self) {
-        // TIM2 uses PCLK1. By default PCLK1 uses HSI running at 16Mhz.
-        // Before calling set_alarm, we assume clock to TIM2 has been
-        // enabled.
-
         self.registers.arr.set(0xFFFF - 1);
-        // Prescale 16Mhz to 16Khz, by dividing it by 1000. We need set EGR.UG
-        // in order for the prescale value to become active.
+        
         self.registers.psc.set((999 - 1) as u16);
         self.registers.egr.write(EGR::UG::SET);
         self.registers.cr1.modify(CR1::CEN::SET);
     }
 }
 
-impl Time for Tim2<'_> {
-    type Frequency = Freq16KHz;
+impl Time for Tim<'_> {
+    type Frequency = Freq32KHz;
     type Ticks = Ticks32;
 
     fn now(&self) -> Ticks32 {
@@ -75,7 +96,7 @@ impl Time for Tim2<'_> {
     }
 }
 
-impl<'a> Counter<'a> for Tim2<'a> {
+impl<'a> Counter<'a> for Tim<'a> {
     fn set_overflow_client(&self, _client: &'a dyn OverflowClient) {}
 
     // starts the timer
@@ -100,7 +121,7 @@ impl<'a> Counter<'a> for Tim2<'a> {
     }
 }
 
-impl<'a> Alarm<'a> for Tim2<'a> {
+impl<'a> Alarm<'a> for Tim<'a> {
     fn set_alarm_client(&self, client: &'a dyn AlarmClient) {
         self.client.set(client);
     }
@@ -146,9 +167,9 @@ impl<'a> Alarm<'a> for Tim2<'a> {
     }
 }
 
-struct Tim2Clock<'a>(rcc::PeripheralClock<'a>);
+struct TimClock<'a>(rcc::PeripheralClock<'a>);
 
-impl ClockInterface for Tim2Clock<'_> {
+impl ClockInterface for TimClock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
@@ -164,7 +185,7 @@ impl ClockInterface for Tim2Clock<'_> {
 
 register_structs! {
     /// TIM2
-    Tim2Registers {
+    TimRegisters {
         /// TIM2 control register 1
         (0x000 => cr1: ReadWrite<u16, CR1::Register>),
         (0x002 => _reserved0),
@@ -573,5 +594,11 @@ CCR5 [
     GC5C3 OFFSET(31) NUMBITS(1) []
 ],
 ];
-const BASE: StaticRef<Tim2Registers> =
-    unsafe { StaticRef::new(0x40000000 as *const Tim2Registers) };
+const BASE_TIM2: StaticRef<TimRegisters> =
+    unsafe { StaticRef::new(0x40000000 as *const TimRegisters) };
+const BASE_TIM3: StaticRef<TimRegisters> =
+    unsafe { StaticRef::new(0x40001000 as *const TimRegisters) };
+const BASE_TIM4: StaticRef<TimRegisters> =
+    unsafe { StaticRef::new(0x40002000 as *const TimRegisters) };
+const BASE_TIM5: StaticRef<TimRegisters> =
+    unsafe { StaticRef::new(0x40003000 as *const TimRegisters) };

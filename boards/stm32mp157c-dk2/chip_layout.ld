@@ -13,4 +13,4 @@ MEMORY
   ipc         (rw)  : ORIGIN = 0x10040000, LENGTH = 0x00008000
 }
 
-MPU_MIN_ALIGN = 8K;
+MPU_MIN_ALIGN = 1K;
