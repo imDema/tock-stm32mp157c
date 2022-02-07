@@ -279,21 +279,21 @@ pub unsafe fn main() {
     )
     .finalize(components::alarm_component_helper!(stm32mp15xx::tim::Tim));
 
-    // let process_printer =
-    //     components::process_printer::ProcessPrinterTextComponent::new().finalize(());
-    // PROCESS_PRINTER = Some(process_printer);
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
 
-    // // PROCESS CONSOLE
-    // let process_console = components::process_console::ProcessConsoleComponent::new(
-    //     board_kernel,
-    //     uart_mux,
-    //     mux_alarm,
-    //     process_printer,
-    // )
-    // .finalize(components::process_console_component_helper!(
-    //     stm32mp15xx::tim::Tim
-    // ));
-    // let _ = process_console.start();
+    // PROCESS CONSOLE
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+    )
+    .finalize(components::process_console_component_helper!(
+        stm32mp15xx::tim::Tim
+    ));
+    let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
