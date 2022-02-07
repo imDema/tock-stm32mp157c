@@ -81,7 +81,7 @@ impl<'a> Tim<'a> {
     pub fn start(&self) {
         self.registers.arr.set(0xFFFF - 1);
         
-        self.registers.psc.set((999 - 1) as u16);
+        self.registers.psc.set((8000 - 1) as u16); // Note: this prescaler needs to be checked
         self.registers.egr.write(EGR::UG::SET);
         self.registers.cr1.modify(CR1::CEN::SET);
     }
