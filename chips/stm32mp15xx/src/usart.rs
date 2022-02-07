@@ -8,8 +8,10 @@ use kernel::utilities::registers::{
 };
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+use kernel::debug::IoWrite;
 
 use crate::rcc;
+use crate::trace::*;
 
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
@@ -377,6 +379,117 @@ impl ClockInterface for UsartClock<'_> {
         self.0.disable();
     }
 }
+
+pub struct TracingUsart<'a> {
+    usart: Usart<'a>,
+    trace: TakeCell<'a, TraceBuffer<'a>>,
+}
+
+impl<'a> TracingUsart<'a> {
+    fn new(base_addr: StaticRef<UsartRegisters>, trace: &'a mut TraceBuffer<'a>, clock: UsartClock<'a>) -> Self {
+        let usart = Usart::new(base_addr, clock);
+        let trace = TakeCell::new(trace);
+        Self {
+            usart,
+            trace,
+        }
+    }
+
+    pub fn new_usart3(trace: &'a mut TraceBuffer<'a>, rcc: &'a rcc::Rcc) -> Self {
+        Self::new(
+            USART3_BASE,
+            trace,
+            UsartClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::USART3,
+                rcc,
+            )),
+        )
+    }
+
+    pub fn is_enabled_clock(&self) -> bool {
+        self.usart.clock.is_enabled()
+    }
+
+    pub fn enable_clock(&self) {
+        self.usart.clock.enable();
+    }
+
+    pub fn disable_clock(&self) {
+        self.usart.clock.disable();
+    }
+
+    pub fn handle_interrupt(&self) {
+        self.usart.handle_interrupt();
+    }
+}
+
+
+
+impl<'a> hil::uart::Transmit<'a> for TracingUsart<'a> {
+    fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
+        self.usart.set_transmit_client(client);
+    }
+
+    fn transmit_buffer(
+        &self,
+        tx_data: &'static mut [u8],
+        tx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.usart.tx_status.get() == USARTStateTX::Idle {
+            if tx_len <= tx_data.len() {
+                self.trace.map(|t| t.write(tx_data));
+                self.usart.tx_buffer.put(Some(tx_data));
+                self.usart.tx_position.set(0);
+                self.usart.tx_len.set(tx_len);
+                self.usart.tx_status.set(USARTStateTX::Transmitting);
+
+                self.usart.enable_transmit_interrupt();
+                Ok(())
+            } else {
+                Err((ErrorCode::SIZE, tx_data))
+            }
+        } else {
+            Err((ErrorCode::BUSY, tx_data))
+        }
+    }
+
+    fn transmit_word(&self, word: u32) -> Result<(), ErrorCode> {
+        self.usart.transmit_word(word)
+    }
+
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+        self.usart.transmit_abort()
+    }
+}
+
+impl hil::uart::Configure for TracingUsart<'_> {
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
+        self.usart.configure(params)
+    }
+}
+
+impl<'a> hil::uart::Receive<'a> for TracingUsart<'a> {
+    fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
+        self.usart.set_receive_client(client);
+    }
+
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        self.usart.receive_buffer(rx_buffer, rx_len)
+    }
+
+    fn receive_word(&self) -> Result<(), ErrorCode> {
+        self.usart.receive_word()
+    }
+
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
+        self.usart.receive_abort()
+    }
+}
+
 
 register_structs! {
     /// Universal synchronous asynchronous receiver       transmitter

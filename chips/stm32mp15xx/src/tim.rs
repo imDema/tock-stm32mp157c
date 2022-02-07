@@ -184,65 +184,65 @@ impl ClockInterface for TimClock<'_> {
 }
 
 register_structs! {
-    /// TIM2
+    /// TIM
     TimRegisters {
-        /// TIM2 control register 1
+        /// TIM control register 1
         (0x000 => cr1: ReadWrite<u16, CR1::Register>),
         (0x002 => _reserved0),
-        /// TIM2 control register 2
+        /// TIM control register 2
         (0x004 => cr2: ReadWrite<u32, CR2::Register>),
-        /// TIM2 slave mode control register
+        /// TIM slave mode control register
         (0x008 => smcr: ReadWrite<u32, SMCR::Register>),
-        /// TIM2 DMA/interrupt enable register
+        /// TIM DMA/interrupt enable register
         (0x00C => dier: ReadWrite<u16, DIER::Register>),
         (0x00E => _reserved1),
-        /// TIM2 status register
+        /// TIM status register
         (0x010 => sr: ReadWrite<u32, SR::Register>),
-        /// TIM2 event generation register
+        /// TIM event generation register
         (0x014 => egr: WriteOnly<u16, EGR::Register>),
         (0x016 => _reserved2),
         /// The same register can be used for input capture mode (this section) or for output compare mode (next section). The direction of a channel is defined by configuring the corresponding CCxS bits. All the other bits of this register have a different function for input capture and for output compare modes. It is possible to combine both modes independently (e.g. channel 1 in input capture mode and channel 2 in output compare mode). Input capture mode:
         (0x018 => ccmr1alternate2: ReadWrite<u32, CCMR1ALTERNATE2::Register>),
         /// The same register can be used for input capture mode (this section) or for output compare mode (next section). The direction of a channel is defined by configuring the corresponding CCxS bits. All the other bits of this register have a different function for input capture and for output compare modes. It is possible to combine both modes independently (e.g. channel 1 in input capture mode and channel 2 in output compare mode). Input capture mode:
         (0x01C => ccmr2alternate18: ReadWrite<u32, CCMR2ALTERNATE18::Register>),
-        /// TIM2 capture/compare enable register
+        /// TIM capture/compare enable register
         (0x020 => ccer: ReadWrite<u32, CCER::Register>),
-        /// TIM2 counter
+        /// TIM counter
         (0x024 => cnt: ReadWrite<u32, CNT::Register>),
-        /// TIM2 prescaler
+        /// TIM prescaler
         (0x028 => psc: ReadWrite<u16>),
         (0x02A => _reserved3),
-        /// TIM2 auto-reload register
+        /// TIM auto-reload register
         (0x02C => arr: ReadWrite<u16>),
         (0x02E => _reserved4),
-        /// TIM2 repetition counter register
+        /// TIM repetition counter register
         (0x030 => rcr: ReadWrite<u16>),
         (0x032 => _reserved5),
-        /// TIM2 capture/compare register 1
+        /// TIM capture/compare register 1
         (0x034 => ccr1: ReadWrite<u16>),
         (0x036 => _reserved6),
-        /// TIM2 capture/compare register 2
+        /// TIM capture/compare register 2
         (0x038 => ccr2: ReadWrite<u16>),
         (0x03A => _reserved7),
-        /// TIM2 capture/compare register 3
+        /// TIM capture/compare register 3
         (0x03C => ccr3: ReadWrite<u16>),
         (0x03E => _reserved8),
-        /// TIM2 capture/compare register 4
+        /// TIM capture/compare register 4
         (0x040 => ccr4: ReadWrite<u16>),
         (0x042 => _reserved9),
         /// As the bits BK2BID, BKBID, BK2DSRM, BKDSRM, BK2P, BK2E, BK2F[3:0], BKF[3:0], AOE, BKP, BKE, OSSI, OSSR and DTG[7:0] can be write-locked depending on the LOCK configuration, it can be necessary to configure all of them during the first write access to the TIMx_BDTR register.
         (0x044 => bdtr: ReadWrite<u32, BDTR::Register>),
-        /// TIM2 DMA control register
+        /// TIM DMA control register
         (0x048 => dcr: ReadWrite<u16, DCR::Register>),
         (0x04A => _reserved10),
-        /// TIM2 DMA address for full transfer
+        /// TIM DMA address for full transfer
         (0x04C => dmar: ReadWrite<u32>),
         (0x050 => _reserved11),
         /// The channels 5 and 6 can only be configured in output. Output compare mode:
         (0x054 => ccmr3: ReadWrite<u32, CCMR3::Register>),
-        /// TIM2 capture/compare register 5
+        /// TIM capture/compare register 5
         (0x058 => ccr5: ReadWrite<u32, CCR5::Register>),
-        /// TIM2 capture/compare register 6
+        /// TIM capture/compare register 6
         (0x05C => ccr6: ReadWrite<u16>),
         (0x05E => @END),
     }

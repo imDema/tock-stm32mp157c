@@ -138,10 +138,11 @@ unsafe fn get_peripherals() -> (
     &'static stm32mp15xx::rcc::Rcc,
 ) {
     let rcc = static_init!(stm32mp15xx::rcc::Rcc, stm32mp15xx::rcc::Rcc::new());
+    let trace = stm32mp15xx::trace::get_trace();
 
     let peripherals = static_init!(
         Stm32mp15xxDefaultPeripherals,
-        Stm32mp15xxDefaultPeripherals::new(rcc)
+        Stm32mp15xxDefaultPeripherals::new(trace, rcc)
     );
 
     (peripherals, rcc)
@@ -176,7 +177,6 @@ unsafe fn setup_gpio(
 #[no_mangle]
 pub unsafe fn main() {
     stm32mp15xx::init();
-    let t = stm32mp15xx::trace::get_trace();
     // writeln!(t, "Trace initialized").unwrap();
 
     let (peripherals, _rcc) = get_peripherals();
@@ -225,7 +225,7 @@ pub unsafe fn main() {
     // Create a shared UART channel for kernel debug.
     peripherals.usart1.enable_clock();
     peripherals.usart2.enable_clock();
-    peripherals.usart3.enable_clock();
+    peripherals.usart3_tracing.enable_clock();
     // let uart_mux = components::console::UartMuxComponent::new(
     //     &peripherals.usart3,
     //     115200,
@@ -234,7 +234,7 @@ pub unsafe fn main() {
     // .finalize(());
 
     let uart_mux = components::console::UartMuxComponent::new(
-        t,
+        &peripherals.usart3_tracing,
         115200,
         dynamic_deferred_caller,
     )
@@ -267,8 +267,8 @@ pub unsafe fn main() {
 
     // ALARM
 
-    let tim2 = &peripherals.tim2;
-    let mux_alarm = components::alarm::AlarmMuxComponent::new(tim2).finalize(
+    let tim3 = &peripherals.tim3;
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(tim3).finalize(
         components::alarm_mux_component_helper!(stm32mp15xx::tim::Tim),
     );
 
@@ -279,21 +279,21 @@ pub unsafe fn main() {
     )
     .finalize(components::alarm_component_helper!(stm32mp15xx::tim::Tim));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
-    PROCESS_PRINTER = Some(process_printer);
+    // let process_printer =
+    //     components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    // PROCESS_PRINTER = Some(process_printer);
 
-    // PROCESS CONSOLE
-    let process_console = components::process_console::ProcessConsoleComponent::new(
-        board_kernel,
-        uart_mux,
-        mux_alarm,
-        process_printer,
-    )
-    .finalize(components::process_console_component_helper!(
-        stm32mp15xx::tim::Tim
-    ));
-    let _ = process_console.start();
+    // // PROCESS CONSOLE
+    // let process_console = components::process_console::ProcessConsoleComponent::new(
+    //     board_kernel,
+    //     uart_mux,
+    //     mux_alarm,
+    //     process_printer,
+    // )
+    // .finalize(components::process_console_component_helper!(
+    //     stm32mp15xx::tim::Tim
+    // ));
+    // let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
@@ -312,7 +312,7 @@ pub unsafe fn main() {
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
-    // debug!("Initialization complete. Entering main loop");
+    debug!("Initialization complete. Entering main loop");
 
     /// These symbols are defined in the linker script.
     extern "C" {

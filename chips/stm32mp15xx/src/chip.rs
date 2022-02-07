@@ -19,7 +19,7 @@ pub struct Stm32mp15xx<'a, I: InterruptService<DeferredCallTask> + 'a> {
 pub struct Stm32mp15xxDefaultPeripherals<'a> {
     pub usart1: crate::usart::Usart<'a>,
     pub usart2: crate::usart::Usart<'a>,
-    pub usart3: crate::usart::Usart<'a>,
+    pub usart3_tracing: crate::usart::TracingUsart<'a>,
     pub tim2: crate::tim::Tim<'a>,
     pub tim3: crate::tim::Tim<'a>,
     pub tim4: crate::tim::Tim<'a>,
@@ -32,12 +32,13 @@ pub struct Stm32mp15xxDefaultPeripherals<'a> {
 
 impl<'a> Stm32mp15xxDefaultPeripherals<'a> {
     pub fn new(
+        trace: &'a mut crate::trace::TraceBuffer<'a>,
         rcc: &'a crate::rcc::Rcc,
     ) -> Self {
         Self {
             usart1: crate::usart::Usart::new_usart1(rcc),
             usart2: crate::usart::Usart::new_usart2(rcc),
-            usart3: crate::usart::Usart::new_usart3(rcc),
+            usart3_tracing: crate::usart::TracingUsart::new_usart3(trace, rcc),
             tim2: crate::tim::Tim::new(rcc, crate::tim::TIMN::TIM2),
             tim3: crate::tim::Tim::new(rcc, crate::tim::TIMN::TIM3),
             tim4: crate::tim::Tim::new(rcc, crate::tim::TIMN::TIM4),
@@ -62,13 +63,14 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32mp15xxDefaultPeripherals<'a
         match interrupt {
             nvic::USART1    => self.usart1.handle_interrupt(),
             nvic::USART2    => self.usart2.handle_interrupt(),
-            nvic::USART3    => self.usart3.handle_interrupt(),
+            nvic::USART3    => self.usart3_tracing.handle_interrupt(),
             nvic::TIM2      => self.tim2.handle_interrupt(),
             nvic::TIM3      => self.tim3.handle_interrupt(),
             nvic::TIM4      => self.tim4.handle_interrupt(),
             nvic::TIM5      => self.tim5.handle_interrupt(),
+            _      => {}, // TODO: We are ignoring all other interrupts, in a final version they should be handled accordingly
             
-            _ => return false,
+            // _ => return false,
         }
         true
     }
