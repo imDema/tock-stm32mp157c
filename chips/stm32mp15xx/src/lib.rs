@@ -18,8 +18,6 @@ pub mod rcc;
 pub mod tim;
 pub mod usart;
 pub mod trace;
-// pub mod rpmsg;
-// mod vring;
 
 use cortexm4::{
     generic_isr, hard_fault_handler, initialize_ram_jump_to_main, svc_handler, systick_handler,

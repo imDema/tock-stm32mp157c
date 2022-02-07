@@ -76,6 +76,8 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32mp15xxDefaultPeripherals<'a
     }
 
     unsafe fn service_deferred_call(&self, _task: DeferredCallTask) -> bool {
+        // No deferred tasks defined currently
+
         // match task {
         //     // DeferredCallTask::Fsmc => self.fsmc.handle_interrupt(),
         // }

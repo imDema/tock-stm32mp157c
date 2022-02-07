@@ -1,3 +1,5 @@
+//! # General purpose timers (TIM2/TIM3/TIM4/TIM5)
+
 use cortexm4;
 use cortexm4::support::atomic;
 use kernel::hil::time::{

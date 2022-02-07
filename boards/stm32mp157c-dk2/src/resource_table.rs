@@ -1,5 +1,5 @@
-//! Based on https://github.com/cambridgeconsultants/rust-beagleboardx15-demo
-//! (Under MIT License)
+//! # Remote processor resource table
+//! Based on https://github.com/cambridgeconsultants/rust-beagleboardx15-demo (MIT License)
 //! 
 #![allow(missing_docs)]
 
@@ -114,7 +114,6 @@ pub static RESOURCE_TABLE: ResourceTable = ResourceTable {
         reserved: 0,
         name: *b"cm4_log\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
     },
-
 
     // rpmsg_vdev: Vdev {
     //     rtype: ResourceType::VDEV,

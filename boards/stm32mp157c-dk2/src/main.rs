@@ -1,4 +1,4 @@
-//! Board file for Stm32mp157cDiscovery Kit development board
+//! Board file for Stm32mp157c Discovery Kit development board
 //!
 //! - <https://www.st.com/en/evaluation-tools/stm32mp157cdiscovery.html>
 
@@ -73,16 +73,7 @@ impl SyscallDriverLookup for Stm32mp157cDiscovery {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            // capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
-            // capsules::button::DRIVER_NUM => f(Some(self.button)),
-            // capsules::l3gd20::DRIVER_NUM => f(Some(self.l3gd20)),
-            // capsules::lsm303dlhc::DRIVER_NUM => f(Some(self.lsm303dlhc)),
-            // capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
-            // capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
-            // kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            // capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            // capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             _ => f(None),
         }
     }
@@ -148,7 +139,7 @@ unsafe fn get_peripherals() -> (
     (peripherals, rcc)
 }
 
-/// Helper function for miscellaneous peripheral functions
+/// Helper function for timers
 unsafe fn setup_timers(tims: &[&stm32mp15xx::tim::Tim]) {
     for tim in tims {
         tim.enable_clock();
@@ -156,7 +147,7 @@ unsafe fn setup_timers(tims: &[&stm32mp15xx::tim::Tim]) {
     }
 }
 
-/// Helper function called during bring-up that configures multiplexed I/O.
+/// Helper function for GPIO setup
 unsafe fn setup_gpio(
     gpioa: &'static stm32mp15xx::gpio::GpioPort<'static>,
     gpiob: &'static stm32mp15xx::gpio::GpioPort<'static>,
@@ -177,7 +168,6 @@ unsafe fn setup_gpio(
 #[no_mangle]
 pub unsafe fn main() {
     stm32mp15xx::init();
-    // writeln!(t, "Trace initialized").unwrap();
 
     let (peripherals, _rcc) = get_peripherals();
     peripherals.setup_circular_deps();
@@ -223,15 +213,8 @@ pub unsafe fn main() {
     // UART
 
     // Create a shared UART channel for kernel debug.
-    peripherals.usart1.enable_clock();
-    peripherals.usart2.enable_clock();
+    // Tracing UART will also log transmissions to remoteproc trace log buffer
     peripherals.usart3_tracing.enable_clock();
-    // let uart_mux = components::console::UartMuxComponent::new(
-    //     &peripherals.usart3,
-    //     115200,
-    //     dynamic_deferred_caller,
-    // )
-    // .finalize(());
 
     let uart_mux = components::console::UartMuxComponent::new(
         &peripherals.usart3_tracing,
@@ -240,13 +223,8 @@ pub unsafe fn main() {
     )
     .finalize(());
 
-    // t.transmit_buffer(&mut TEST, 5).unwrap();
-
+    // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
-
-    // `finalize()` configures the underlying USART, so we need to
-    // tell `send_byte()` not to configure the USART again.
-    // io::WRITER.set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
@@ -262,8 +240,6 @@ pub unsafe fn main() {
         uart_mux,
     )
     .finalize(());
-    // Create the debugger object that handles calls to `debug!()`.
-    // components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // ALARM
 
@@ -308,9 +284,11 @@ pub unsafe fn main() {
     };
 
     // // Optional kernel tests
-    // //
-    // // See comment in `boards/imix/src/main.rs`
-    // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
+
+    //Uncomment to run multi alarm test
+    /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
+    .finalize(components::multi_alarm_test_component_buf!(stm32mp15xx::tim2::Tim2))
+    .run();*/
 
     debug!("Initialization complete. Entering main loop");
 
@@ -346,13 +324,6 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    // Uncomment this to enable the watchdog
-    // peripherals.watchdog.enable();
-
-    //Uncomment to run multi alarm test
-    /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
-    .finalize(components::multi_alarm_test_component_buf!(stm32mp15xx::tim2::Tim2))
-    .run();*/
     board_kernel.kernel_loop::<_, _, NUM_PROCS>(
         &stm32mp157cdiscovery,
         chip,

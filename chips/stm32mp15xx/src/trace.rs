@@ -1,8 +1,6 @@
 //! # Trace Buffers
 //!
-//! Based on Trace buffers implementation by
-//! Copyright (c) 2018, Cambridge Consultants Ltd.
-//! MIT License.
+//! Based on https://github.com/cambridgeconsultants/rust-beagleboardx15-demo (MIT License)
 //!
 //! This module is for emitting text to
 //! `/sys/kernel/debug/remoteproc/remoteproc0/trace`.
@@ -28,9 +26,6 @@ pub struct TraceBuffer<'a> {
 #[no_mangle]
 static mut TRACE_BUFFER: [u8; TRACE_BUF_SIZE] = [0u8; TRACE_BUF_SIZE];
 
-/// The first time you call this you'll get Some(t), where t
-/// can be passed to `writeln!` and friends. The second
-/// time you'll get None, so only call it once!
 pub unsafe fn get_trace() -> &'static mut TraceBuffer<'static> {
     static_init!(TraceBuffer, TraceBuffer{
         pos: 0,
@@ -55,12 +50,7 @@ pub unsafe fn steal_trace() -> TraceBuffer<'static> {
 
 impl<'a> Write for TraceBuffer<'a> {
     fn write_str(&mut self, s: &str) -> Result<(), ::core::fmt::Error> {
-        // Can never fit (with the null), so return an error.
         let byte_len = s.as_bytes().len();
-        // if (byte_len + 1) > self.buffer.len() {
-        //     return Err(::core::fmt::Error);
-        // }
-
         let space = self.buffer.len() - self.pos;
 
         // Doesn't fit (with the null), let's wrap to make us some more space.
@@ -68,6 +58,7 @@ impl<'a> Write for TraceBuffer<'a> {
             self.pos = 0;
         }
 
+        // Truncates output if it doesn't fit
         let mut written = 0;
         for (s, d) in s
             .bytes()
@@ -77,10 +68,8 @@ impl<'a> Write for TraceBuffer<'a> {
             *d = s;
             written += 1;
         }
-        self.pos = self.buffer.len().min(self.pos + written);
-        if self.pos < self.buffer.len() {
-            self.buffer[self.pos] = 0;
-        }
+        self.pos = (self.buffer.len() - 1).min(self.pos + written);
+        self.buffer[self.pos] = 0;
         Ok(())
     }
 }
